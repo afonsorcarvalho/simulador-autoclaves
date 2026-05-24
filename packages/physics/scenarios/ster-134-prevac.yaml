@@ -10,12 +10,27 @@ equipment:
     metal_kg: 20
     fabric_kg: 5
 steps:
+  # Phase 0 (0–300 s): pre-heat jacket + generator
   - { t: 0, valves: [V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  # Pulse 1: vacuum 30 s, then steam 30 s (prevac)
   - { t: 300, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
   - { t: 330, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  # Pulse 2: vacuum 30 s, then steam 30 s (prevac)
   - { t: 360, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
   - { t: 390, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  # Pulse 3: vacuum 30 s, then steam 30 s (prevac)
   - { t: 420, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
   - { t: 450, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-  - { t: 1050, valves: [V_EXHAUST], actuators: [HEATER_GEN] }
-  - { t: 1110, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  # Phase 3: sterilisation via gravity-displacement hold
+  # V_EXHAUST open simultaneously with steam caps chamber at ~3 bar (flow-through at 166°C)
+  # T_fabric climbs from 72°C → 121°C (t≈570) → 134°C (t≈630) → peaks ~156°C
+  # NOTE: F0 overflows because h_metal_fabric=30 W/K + h_gas_metal=500 W/K cause the
+  # metal to superheat to 166°C before T_fabric reaches 121°C; once T_metal>121°C the
+  # fabric cannot cool fast enough (τ_fabric=250 s) to prevent F0 runaway.
+  # This scenario is BLOCKED pending a physics-layer fix (e.g. lower h_gas_metal or
+  # add a feedback-controlled steam-hold with active cooling).
+  - { t: 480, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET, V_EXHAUST], actuators: [HEATER_GEN] }
+  # Phase 4: exhaust + cool, heater off
+  - { t: 900, valves: [V_EXHAUST], actuators: [] }
+  # Phase 5: vacuum drying (only after load has cooled below 100°C)
+  - { t: 1300, valves: [V_VAC], actuators: [PUMP_VAC] }
