@@ -4,3 +4,4 @@ export * from './valve.js';
 export * from './f0.js';
 export * from './chamber.js';
 export * from './generator.js';
+export * from './load.js';
