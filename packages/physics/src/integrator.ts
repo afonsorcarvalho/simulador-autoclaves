@@ -9,7 +9,7 @@ import {
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { choked_flow, type ValveParams } from './valve.js';
-import { P_ATM } from './constants.js';
+import { P_ATM, GAMMA_AIR, GAMMA_VAP } from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
@@ -155,6 +155,18 @@ export function system_step(
       acc[topo.to].inflow_T_mass += m;
     }
     // Flow to atmosphere/vacuum leaves the system (already subtracted from source)
+  }
+
+  // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
+  // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
+  // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
+  // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.33).
+  for (const key of ['chamber', 'jacket'] as const) {
+    const src = state[key] as ChamberState;
+    const max_air_out = src.m_air / (GAMMA_AIR * dt);
+    const max_vap_out = src.m_vap / (GAMMA_VAP * dt);
+    if (acc[key].air_out > max_air_out) acc[key].air_out = max_air_out;
+    if (acc[key].vap_out > max_vap_out) acc[key].vap_out = max_vap_out;
   }
 
   // Load step: chamber gas ↔ load thermal exchange

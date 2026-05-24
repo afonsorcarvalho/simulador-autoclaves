@@ -47,27 +47,59 @@ export interface ChamberFluxes {
  * For jacket (allowLiquid=false), condensate is dropped (drips out instantly).
  */
 export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes, dt: number): ChamberState {
-  // 1. Provisional mass balance
-  let m_air = s.m_air + (f.inflow.air - f.outflow.air) * dt;
-  let m_vap = s.m_vap + (f.inflow.vap - f.outflow.vap) * dt;
-  let m_liq = s.m_liq + (f.inflow.liq - f.outflow.liq) * dt;
+  // 1. Provisional mass balance — clamp to zero to prevent negative masses.
+  // Compute ACTUAL mass removed (capped at available) for energy accounting.
+  const dm_air_out_req = f.outflow.air * dt;
+  const dm_vap_out_req = f.outflow.vap * dt;
+  const dm_liq_out_req = f.outflow.liq * dt;
+  const dm_air_in = f.inflow.air * dt;
+  const dm_vap_in = f.inflow.vap * dt;
+  const dm_liq_in = f.inflow.liq * dt;
+  // Actual outflow cannot exceed available mass
+  const dm_air_out = Math.min(dm_air_out_req, Math.max(s.m_air + dm_air_in, 0));
+  const dm_vap_out = Math.min(dm_vap_out_req, Math.max(s.m_vap + dm_vap_in, 0));
+  const dm_liq_out = Math.min(dm_liq_out_req, Math.max(s.m_liq + dm_liq_in, 0));
+
+  let m_air = s.m_air + dm_air_in - dm_air_out;
+  let m_vap = s.m_vap + dm_vap_in - dm_vap_out;
+  let m_liq = s.m_liq + dm_liq_in - dm_liq_out;
   if (m_air < 0) m_air = 0;
   if (m_vap < 0) m_vap = 0;
   if (m_liq < 0) m_liq = 0;
   if (!p.allowLiquid) m_liq = 0;
 
-  // 2. Energy balance with cv (internal energy) for stored gas, cp (enthalpy) for flows.
+  // 2. Energy balance — use ACTUAL (clamped) outflow for consistency with mass balance.
   const U_old = s.m_air * CV_AIR * s.T + s.m_vap * CV_VAP * s.T + s.m_liq * CP_LIQ * s.T;
   const H_in =
-    (f.inflow.air * CP_AIR + f.inflow.vap * CP_VAP + f.inflow.liq * CP_LIQ) * f.inflow_T;
+    (dm_air_in * CP_AIR + dm_vap_in * CP_VAP + dm_liq_in * CP_LIQ) * f.inflow_T;
   const H_out =
-    (f.outflow.air * CP_AIR + f.outflow.vap * CP_VAP + f.outflow.liq * CP_LIQ) * s.T;
-  const U_new = U_old + (H_in - H_out + f.Q_external) * dt;
+    (dm_air_out * CP_AIR + dm_vap_out * CP_VAP + dm_liq_out * CP_LIQ) * s.T;
+  const U_new = U_old + H_in - H_out + f.Q_external * dt;
 
-  // 3. Solve T from U_new with provisional masses
+  // 3. Solve T from U_new with provisional masses.
+  const T_MAX_K = 273.15 + 600; // 600 °C — hard cap, well above any autoclave condition
+  const MIN_HEAT_CAP_JK = 500; // J/K — floor used only in condensation latent heat to prevent
+  // T spikes when condensing large vapor mass into tiny liquid at near-vacuum (see step 4).
   const denom_pre = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
   let T = denom_pre > 0 ? U_new / denom_pre : s.T;
-  if (!isFinite(T) || T < 1) T = s.T;
+  if (!isFinite(T) || T < 1 || T > T_MAX_K) T = Math.min(s.T, T_MAX_K);
+
+  // 3.5. Evaporation: liquid → vapor when sub-saturated
+  if (p.allowLiquid && m_liq > 0) {
+    const t_C_evap = T - 273.15;
+    const p_sat_now = Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C_evap)) * 133.322;
+    const p_vap_now = (m_vap * R_VAP * T) / p.V;
+    if (p_vap_now < p_sat_now) {
+      const k_evap = 1e-7; // kg/(s·Pa) — empirical; tunable
+      const dm_evap_max = m_liq;
+      const dm_evap = Math.min(k_evap * (p_sat_now - p_vap_now) * dt, dm_evap_max);
+      m_liq -= dm_evap;
+      m_vap += dm_evap;
+      // Cools system: latent heat absorbed
+      const denom_evap = Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
+      T -= (dm_evap * h_vap_water(T)) / denom_evap;
+    }
+  }
 
   // 4. Saturation / condensation loop (1-3 iterations are enough for typical dt)
   for (let iter = 0; iter < 3; iter++) {
@@ -88,8 +120,9 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
     m_vap -= dm_cond;
     m_liq += dm_cond;
     const Q_lat = dm_cond * h_vap_water(T);
-    const denom = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
-    if (denom > 0) T += Q_lat / denom;
+    const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
+    T += Q_lat / denom;
+    if (T > T_MAX_K) { T = T_MAX_K; break; } // guard against residual runaway
   }
 
   return { m_air, m_vap, m_liq, T };

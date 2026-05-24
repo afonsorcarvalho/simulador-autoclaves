@@ -113,3 +113,13 @@ describe('chamber_step — condensation', () => {
     expect(next.m_vap + next.m_liq).toBeCloseTo(s.m_vap + s.m_liq, 6);
   });
 });
+
+describe('chamber_step — evaporation', () => {
+  it('evaporates liquid when sub-saturated', () => {
+    const s = { m_air: 0.01, m_vap: 0, m_liq: 0.05, T: C_to_K(80) };
+    let cur = s;
+    for (let i = 0; i < 60 * 100; i++) cur = chamber_step(cur, params150L, noFlux(cur.T), 0.01);
+    expect(cur.m_liq).toBeLessThan(s.m_liq);
+    expect(cur.m_vap).toBeGreaterThan(s.m_vap);
+  });
+});
