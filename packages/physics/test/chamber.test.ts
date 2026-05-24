@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { chamber_pressure, chamber_step, type ChamberState, type ChamberParams, type ChamberFluxes, type SpeciesFlow } from '../src/chamber.js';
-import { R_AIR, C_to_K, P_ATM, Pa_to_bar } from '../src/constants.js';
+import {
+  chamber_pressure,
+  chamber_step,
+  type ChamberState,
+  type ChamberParams,
+  type ChamberFluxes,
+  type SpeciesFlow,
+} from '../src/chamber.js';
+import { C_to_K, Pa_to_bar } from '../src/constants.js';
 
 const params150L: ChamberParams = { V: 0.15, allowLiquid: true };
 
@@ -36,7 +43,9 @@ describe('chamber_pressure', () => {
   });
 });
 
-function zeroFlow(): SpeciesFlow { return { air: 0, vap: 0, liq: 0 }; }
+function zeroFlow(): SpeciesFlow {
+  return { air: 0, vap: 0, liq: 0 };
+}
 function noFlux(T_K: number): ChamberFluxes {
   return { inflow: zeroFlow(), inflow_T: T_K, outflow: zeroFlow(), Q_external: 0 };
 }
@@ -91,7 +100,9 @@ describe('chamber_step — energy balance', () => {
   it('cools when Q_external is negative (heat loss)', () => {
     const s = { m_air: 0.18, m_vap: 0, m_liq: 0, T: C_to_K(100) };
     const f: ChamberFluxes = {
-      inflow: zeroFlow(), inflow_T: C_to_K(100), outflow: zeroFlow(),
+      inflow: zeroFlow(),
+      inflow_T: C_to_K(100),
+      outflow: zeroFlow(),
       Q_external: -1000,
     };
     const next = chamber_step(s, params150L, f, 1);

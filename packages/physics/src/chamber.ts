@@ -46,7 +46,12 @@ export interface ChamberFluxes {
  * Single-step Euler integration. Mass + energy balances + saturation/condensation.
  * For jacket (allowLiquid=false), condensate is dropped (drips out instantly).
  */
-export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes, dt: number): ChamberState {
+export function chamber_step(
+  s: ChamberState,
+  p: ChamberParams,
+  f: ChamberFluxes,
+  dt: number,
+): ChamberState {
   // 1. Provisional mass balance — clamp to zero to prevent negative masses.
   // Compute ACTUAL mass removed (capped at available) for energy accounting.
   const dm_air_out_req = f.outflow.air * dt;
@@ -70,10 +75,8 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
 
   // 2. Energy balance — use ACTUAL (clamped) outflow for consistency with mass balance.
   const U_old = s.m_air * CV_AIR * s.T + s.m_vap * CV_VAP * s.T + s.m_liq * CP_LIQ * s.T;
-  const H_in =
-    (dm_air_in * CP_AIR + dm_vap_in * CP_VAP + dm_liq_in * CP_LIQ) * f.inflow_T;
-  const H_out =
-    (dm_air_out * CP_AIR + dm_vap_out * CP_VAP + dm_liq_out * CP_LIQ) * s.T;
+  const H_in = (dm_air_in * CP_AIR + dm_vap_in * CP_VAP + dm_liq_in * CP_LIQ) * f.inflow_T;
+  const H_out = (dm_air_out * CP_AIR + dm_vap_out * CP_VAP + dm_liq_out * CP_LIQ) * s.T;
   const U_new = U_old + H_in - H_out + f.Q_external * dt;
 
   // 3. Solve T from U_new with provisional masses.
@@ -96,7 +99,10 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
       m_liq -= dm_evap;
       m_vap += dm_evap;
       // Cools system: latent heat absorbed
-      const denom_evap = Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
+      const denom_evap = Math.max(
+        m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ,
+        MIN_HEAT_CAP_JK,
+      );
       T -= (dm_evap * h_vap_water(T)) / denom_evap;
     }
   }
@@ -122,7 +128,10 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
     const Q_lat = dm_cond * h_vap_water(T);
     const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
     T += Q_lat / denom;
-    if (T > T_MAX_K) { T = T_MAX_K; break; } // guard against residual runaway
+    if (T > T_MAX_K) {
+      T = T_MAX_K;
+      break;
+    } // guard against residual runaway
   }
 
   return { m_air, m_vap, m_liq, T };

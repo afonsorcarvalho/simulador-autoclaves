@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../src/integrator.js';
 import {
-  GAMMA_AIR, GAMMA_VAP, R_AIR, R_VAP, P_ATM,
-  C_to_K, K_to_C, Pa_to_bar, bar_to_Pa,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_AIR,
+  R_VAP,
+  P_ATM,
+  C_to_K,
+  Pa_to_bar,
+  bar_to_Pa,
 } from '../src/constants.js';
-import { chamber_pressure } from '../src/chamber.js';
 
 function basicParams(): SystemParams {
   return {
@@ -12,15 +17,31 @@ function basicParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 500, h_metal_fabric: 30,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 500,
+      h_metal_fabric: 30,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 1e-5, gamma: GAMMA_VAP, R: R_VAP } },
-      V_VAC:          { from: 'chamber',   to: 'vacuum',  params: { Cv: 5e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN:       { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 1e-5, gamma: GAMMA_VAP, R: R_VAP },
+      },
+      V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 5e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -75,7 +96,13 @@ describe('system_step', () => {
     s.generator!.m_water_vap = 0.5;
     let cur = s;
     for (let i = 0; i < 1500; i++) {
-      cur = system_step(cur, p, { V_STEAM_IN_INT: true }, { heater_gen: true, pump_vac: false }, 0.01);
+      cur = system_step(
+        cur,
+        p,
+        { V_STEAM_IN_INT: true },
+        { heater_gen: true, pump_vac: false },
+        0.01,
+      );
     }
     expect(cur.chamber.T).toBeGreaterThan(C_to_K(40));
     expect(cur.chamber.m_vap).toBeGreaterThan(0);

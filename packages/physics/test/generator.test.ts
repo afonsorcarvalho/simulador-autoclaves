@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generator_step, generator_pressure, type GeneratorState, type GeneratorParams } from '../src/generator.js';
+import {
+  generator_step,
+  generator_pressure,
+  type GeneratorState,
+  type GeneratorParams,
+} from '../src/generator.js';
 import { C_to_K, Pa_to_bar } from '../src/constants.js';
 
 const gen24kW: GeneratorParams = { V_total: 0.05, heater_power_W: 24000 };

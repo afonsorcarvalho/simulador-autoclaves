@@ -11,7 +11,10 @@ describe('Drying phase', () => {
       jacket: { V: 0.025, allowLiquid: false },
       generator: null,
       load: {
-        m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
+        m_metal: 20,
+        cp_metal: 500,
+        m_fabric: 5,
+        cp_fabric: 1500,
         h_gas_metal: 50, // low: vacuum greatly reduces convective heat transfer
         h_metal_fabric: 30,
       },

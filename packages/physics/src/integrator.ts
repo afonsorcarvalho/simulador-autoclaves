@@ -1,11 +1,17 @@
 import { F0Accumulator } from './f0.js';
 import {
-  chamber_step, chamber_pressure,
-  type ChamberState, type ChamberParams, type ChamberFluxes, type SpeciesFlow,
+  chamber_step,
+  chamber_pressure,
+  type ChamberState,
+  type ChamberParams,
+  type ChamberFluxes,
+  type SpeciesFlow,
 } from './chamber.js';
 import {
-  generator_step, generator_pressure,
-  type GeneratorState, type GeneratorParams,
+  generator_step,
+  generator_pressure,
+  type GeneratorState,
+  type GeneratorParams,
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { choked_flow, type ValveParams } from './valve.js';
@@ -65,8 +71,12 @@ function emptyAccum(): FlowAccum {
   return { air_in: 0, vap_in: 0, air_out: 0, vap_out: 0, inflow_T_weighted: 0, inflow_T_mass: 0 };
 }
 
-function speciesIn(a: FlowAccum): SpeciesFlow { return { air: a.air_in, vap: a.vap_in, liq: 0 }; }
-function speciesOut(a: FlowAccum): SpeciesFlow { return { air: a.air_out, vap: a.vap_out, liq: 0 }; }
+function speciesIn(a: FlowAccum): SpeciesFlow {
+  return { air: a.air_in, vap: a.vap_in, liq: 0 };
+}
+function speciesOut(a: FlowAccum): SpeciesFlow {
+  return { air: a.air_out, vap: a.vap_out, liq: 0 };
+}
 
 function inflowT(a: FlowAccum, fallback: number): number {
   return a.inflow_T_mass > 0 ? a.inflow_T_weighted / a.inflow_T_mass : fallback;
@@ -123,7 +133,8 @@ export function system_step(
     // - generator / steam_line source → all vapor
     // - atmosphere source → all air
     // - chamber / jacket source → split proportional to mass fractions
-    let air_share = 0, vap_share = 0;
+    let air_share = 0,
+      vap_share = 0;
     if (topo.from === 'generator' || topo.from === 'steam_line') {
       vap_share = m;
     } else if (topo.from === 'atmosphere') {

@@ -3,8 +3,10 @@ import { load_step, type LoadState, type LoadParams } from '../src/load.js';
 import { C_to_K } from '../src/constants.js';
 
 const standardLoad: LoadParams = {
-  m_metal: 20, cp_metal: 500,
-  m_fabric: 5, cp_fabric: 1500,
+  m_metal: 20,
+  cp_metal: 500,
+  m_fabric: 5,
+  cp_fabric: 1500,
   h_gas_metal: 500,
   h_metal_fabric: 30,
 };

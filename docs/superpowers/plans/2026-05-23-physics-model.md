@@ -49,18 +49,18 @@ packages/physics/
 
 ### File responsibilities
 
-| File | One-line responsibility |
-|---|---|
-| `constants.ts` | Numerical constants (gas constants, specific heats, gammas, critical pressure ratios, defaults) |
-| `saturation.ts` | `p_sat_water(T_K)` (Antoine) and `h_vap_water(T_K)` (linear approx) |
-| `valve.ts` | `choked_flow(P_up, T_up, P_down, valveParams) → kg/s` for compressible gas |
-| `f0.ts` | `F0Accumulator` — integrates `10^((T-121.1)/10)` over time |
-| `chamber.ts` | Generic CV holding air + vapor + liquid with mass + energy balances and saturation handling. Used for both internal chamber and jacket (with `allowLiquid: false` if needed). |
-| `generator.ts` | Pool boiling: water reservoir + vapor headspace; heater drives evaporation; exposes outlet flow on demand |
-| `load.ts` | 2-mass thermal cascade: chamber gas → metal mass → fabric mass; fabric T = witness sensor reading |
-| `integrator.ts` | Defines `SystemState` and `SystemParams` aggregate types; `step()` reads valve commands, computes inter-CV flows, drives all CVs one dt, updates F0 |
-| `csv-trace.ts` | Append snapshots to in-memory rows + serialize to CSV string |
-| `cli.ts` | Reads a scenario YAML, runs the integrator headless, writes CSV to disk |
+| File            | One-line responsibility                                                                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constants.ts`  | Numerical constants (gas constants, specific heats, gammas, critical pressure ratios, defaults)                                                                               |
+| `saturation.ts` | `p_sat_water(T_K)` (Antoine) and `h_vap_water(T_K)` (linear approx)                                                                                                           |
+| `valve.ts`      | `choked_flow(P_up, T_up, P_down, valveParams) → kg/s` for compressible gas                                                                                                    |
+| `f0.ts`         | `F0Accumulator` — integrates `10^((T-121.1)/10)` over time                                                                                                                    |
+| `chamber.ts`    | Generic CV holding air + vapor + liquid with mass + energy balances and saturation handling. Used for both internal chamber and jacket (with `allowLiquid: false` if needed). |
+| `generator.ts`  | Pool boiling: water reservoir + vapor headspace; heater drives evaporation; exposes outlet flow on demand                                                                     |
+| `load.ts`       | 2-mass thermal cascade: chamber gas → metal mass → fabric mass; fabric T = witness sensor reading                                                                             |
+| `integrator.ts` | Defines `SystemState` and `SystemParams` aggregate types; `step()` reads valve commands, computes inter-CV flows, drives all CVs one dt, updates F0                           |
+| `csv-trace.ts`  | Append snapshots to in-memory rows + serialize to CSV string                                                                                                                  |
+| `cli.ts`        | Reads a scenario YAML, runs the integrator headless, writes CSV to disk                                                                                                       |
 
 ---
 
@@ -68,28 +68,32 @@ packages/physics/
 
 ```typescript
 // constants.ts
-export const R_AIR = 287.05;        // J/(kg·K)
-export const R_VAP = 461.5;         // J/(kg·K)
-export const CP_AIR = 1005;         // J/(kg·K)
-export const CV_AIR = 718;          // J/(kg·K)
-export const CP_VAP = 1996;         // J/(kg·K)
-export const CV_VAP = 1410;         // J/(kg·K)
-export const CP_LIQ = 4186;         // J/(kg·K)
+export const R_AIR = 287.05; // J/(kg·K)
+export const R_VAP = 461.5; // J/(kg·K)
+export const CP_AIR = 1005; // J/(kg·K)
+export const CV_AIR = 718; // J/(kg·K)
+export const CP_VAP = 1996; // J/(kg·K)
+export const CV_VAP = 1410; // J/(kg·K)
+export const CP_LIQ = 4186; // J/(kg·K)
 export const GAMMA_AIR = 1.4;
 export const GAMMA_VAP = 1.33;
-export const P_ATM = 101325;        // Pa
-export const T_REF_F0_K = 394.25;   // 121.1°C in K
-export const Z_F0 = 10;             // °C
+export const P_ATM = 101325; // Pa
+export const T_REF_F0_K = 394.25; // 121.1°C in K
+export const Z_F0 = 10; // °C
 export const KELVIN_OFFSET = 273.15;
 ```
 
 ```typescript
 // saturation.ts
-export function p_sat_water(T_K: number): number;       // Pa
-export function h_vap_water(T_K: number): number;       // J/kg
+export function p_sat_water(T_K: number): number; // Pa
+export function h_vap_water(T_K: number): number; // J/kg
 
 // valve.ts
-export interface ValveParams { Cv: number; gamma: number; R: number; }
+export interface ValveParams {
+  Cv: number;
+  gamma: number;
+  R: number;
+}
 export function choked_flow(P_up: number, T_up: number, P_down: number, v: ValveParams): number;
 
 // f0.ts
@@ -99,48 +103,98 @@ export class F0Accumulator {
 }
 
 // chamber.ts
-export interface ChamberState { m_air: number; m_vap: number; m_liq: number; T: number; }
-export interface ChamberParams { V: number; allowLiquid: boolean; }
-export interface SpeciesFlow { air: number; vap: number; liq: number; }
-export interface ChamberFluxes {
-  inflow: SpeciesFlow;        // kg/s, each species
-  inflow_T: number;            // K, temperature of inflow gas (carries enthalpy)
-  outflow: SpeciesFlow;       // kg/s, each species (uses chamber's own T for enthalpy)
-  Q_external: number;          // W, net heat into chamber (positive = heating)
+export interface ChamberState {
+  m_air: number;
+  m_vap: number;
+  m_liq: number;
+  T: number;
 }
-export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes, dt: number): ChamberState;
-export function chamber_pressure(s: ChamberState, p: ChamberParams): {
-  p_air: number; p_vap: number; p_total: number;  // Pa
+export interface ChamberParams {
+  V: number;
+  allowLiquid: boolean;
+}
+export interface SpeciesFlow {
+  air: number;
+  vap: number;
+  liq: number;
+}
+export interface ChamberFluxes {
+  inflow: SpeciesFlow; // kg/s, each species
+  inflow_T: number; // K, temperature of inflow gas (carries enthalpy)
+  outflow: SpeciesFlow; // kg/s, each species (uses chamber's own T for enthalpy)
+  Q_external: number; // W, net heat into chamber (positive = heating)
+}
+export function chamber_step(
+  s: ChamberState,
+  p: ChamberParams,
+  f: ChamberFluxes,
+  dt: number,
+): ChamberState;
+export function chamber_pressure(
+  s: ChamberState,
+  p: ChamberParams,
+): {
+  p_air: number;
+  p_vap: number;
+  p_total: number; // Pa
 };
 
 // generator.ts
-export interface GeneratorState { m_water_liq: number; m_water_vap: number; T: number; }
-export interface GeneratorParams { V_total: number; heater_power_W: number; }
-export function generator_step(s: GeneratorState, p: GeneratorParams, heater_on: boolean, outflow_vap: number, dt: number): GeneratorState;
-export function generator_pressure(s: GeneratorState, p: GeneratorParams): number;  // Pa
+export interface GeneratorState {
+  m_water_liq: number;
+  m_water_vap: number;
+  T: number;
+}
+export interface GeneratorParams {
+  V_total: number;
+  heater_power_W: number;
+}
+export function generator_step(
+  s: GeneratorState,
+  p: GeneratorParams,
+  heater_on: boolean,
+  outflow_vap: number,
+  dt: number,
+): GeneratorState;
+export function generator_pressure(s: GeneratorState, p: GeneratorParams): number; // Pa
 
 // load.ts
-export interface LoadState { T_metal: number; T_fabric: number; }
-export interface LoadParams {
-  m_metal: number; cp_metal: number; m_fabric: number; cp_fabric: number;
-  h_gas_metal: number;        // W/K — gas↔metal coupling
-  h_metal_fabric: number;     // W/K — metal↔fabric coupling
+export interface LoadState {
+  T_metal: number;
+  T_fabric: number;
 }
-export function load_step(s: LoadState, p: LoadParams, T_gas: number, dt: number): {
+export interface LoadParams {
+  m_metal: number;
+  cp_metal: number;
+  m_fabric: number;
+  cp_fabric: number;
+  h_gas_metal: number; // W/K — gas↔metal coupling
+  h_metal_fabric: number; // W/K — metal↔fabric coupling
+}
+export function load_step(
+  s: LoadState,
+  p: LoadParams,
+  T_gas: number,
+  dt: number,
+): {
   next: LoadState;
-  Q_from_gas: number;  // W absorbed from gas (positive = removed from gas)
+  Q_from_gas: number; // W absorbed from gas (positive = removed from gas)
 };
 
 // integrator.ts
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
-export interface ValveTopology { from: VCName; to: VCName; params: ValveParams; }
+export interface ValveTopology {
+  from: VCName;
+  to: VCName;
+  params: ValveParams;
+}
 export interface SystemParams {
   chamber: ChamberParams;
   jacket: ChamberParams;
-  generator: GeneratorParams | null;       // null if vapor source is external steam line
+  generator: GeneratorParams | null; // null if vapor source is external steam line
   load: LoadParams;
   valves: Record<string, ValveTopology>;
-  external: { steam_line_pressure: number; steam_line_T: number; atmosphere_T: number; };
+  external: { steam_line_pressure: number; steam_line_T: number; atmosphere_T: number };
 }
 export interface SystemState {
   chamber: ChamberState;
@@ -150,9 +204,20 @@ export interface SystemState {
   f0_minutes: number;
   time_s: number;
 }
-export interface ValveCommands { [valveId: string]: boolean; }
-export interface ActuatorCommands { heater_gen: boolean; pump_vac: boolean; }
-export function system_step(s: SystemState, p: SystemParams, valves: ValveCommands, actuators: ActuatorCommands, dt: number): SystemState;
+export interface ValveCommands {
+  [valveId: string]: boolean;
+}
+export interface ActuatorCommands {
+  heater_gen: boolean;
+  pump_vac: boolean;
+}
+export function system_step(
+  s: SystemState,
+  p: SystemParams,
+  valves: ValveCommands,
+  actuators: ActuatorCommands,
+  dt: number,
+): SystemState;
 ```
 
 These type signatures are normative — every task respects them. If a task needs to extend a type, document the change in its commit message.
@@ -162,6 +227,7 @@ These type signatures are normative — every task respects them. If a task need
 ## Task 1: Scaffold packages/physics
 
 **Files:**
+
 - Create: `packages/physics/package.json`
 - Create: `packages/physics/tsconfig.json`
 - Create: `packages/physics/vitest.config.ts`
@@ -237,7 +303,7 @@ export default defineConfig({
 
 - [ ] **Step 1.4: Write `packages/physics/README.md`**
 
-```markdown
+````markdown
 # @sim/physics
 
 Standalone thermodynamic model of a steam autoclave (chamber + jacket + steam generator + thermal load). Lumped parameter, gas+vapor+liquid mass balances, saturation handling (Antoine), F0 accumulation.
@@ -249,19 +315,21 @@ Used by `apps/web` (Next.js orchestrator) and by the scenario-runner CLI.
 ```bash
 pnpm --filter @sim/physics scenario scenarios/ster-134-prevac.yaml --out trace.csv
 ```
+````
 
 ## Run tests
 
 ```bash
 pnpm --filter @sim/physics test
 ```
-```
+
+````
 
 - [ ] **Step 1.5: Write `packages/physics/src/index.ts`** (placeholder re-exports; will fill as modules land)
 
 ```typescript
 export * from './constants.js';
-```
+````
 
 - [ ] **Step 1.6: Install workspace deps**
 
@@ -281,6 +349,7 @@ git commit -m "feat(physics): scaffold @sim/physics workspace"
 ## Task 2: Constants
 
 **Files:**
+
 - Create: `packages/physics/src/constants.ts`
 
 - [ ] **Step 2.1: Write `packages/physics/src/constants.ts`**
@@ -333,6 +402,7 @@ git commit -m "feat(physics): physical constants and unit helpers"
 ## Task 3: Saturation (Antoine + h_vap) — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/saturation.test.ts`
 - Create: `packages/physics/src/saturation.ts`
 
@@ -451,6 +521,7 @@ git commit -m "feat(physics): water saturation pressure (Antoine) and latent hea
 ## Task 4: Valve (compressible orifice) — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/valve.test.ts`
 - Create: `packages/physics/src/valve.ts`
 
@@ -541,7 +612,7 @@ export function choked_flow(P_up: number, T_up: number, P_down: number, v: Valve
   const r_crit = criticalRatio(v.gamma);
   const ratio = P_down / P_up;
 
-  const baseFactor = v.Cv * P_up / Math.sqrt(v.R * T_up);
+  const baseFactor = (v.Cv * P_up) / Math.sqrt(v.R * T_up);
 
   if (ratio <= r_crit) {
     // Choked: mass flow caps. ṁ = Cv·P_up·sqrt(γ/(R·T))·((2/(γ+1))^((γ+1)/(2(γ-1))))
@@ -552,7 +623,7 @@ export function choked_flow(P_up: number, T_up: number, P_down: number, v: Valve
   // Subsonic: ṁ = Cv·P_up·sqrt((2γ/((γ-1)R·T)) · (r^(2/γ) − r^((γ+1)/γ)))
   const r_2_g = Math.pow(ratio, 2 / v.gamma);
   const r_g1_g = Math.pow(ratio, (v.gamma + 1) / v.gamma);
-  const inside = (2 * v.gamma / (v.gamma - 1)) * (r_2_g - r_g1_g);
+  const inside = ((2 * v.gamma) / (v.gamma - 1)) * (r_2_g - r_g1_g);
   return baseFactor * Math.sqrt(inside);
 }
 ```
@@ -564,6 +635,7 @@ export function choked_flow(P_up: number, T_up: number, P_down: number, v: Valve
 - [ ] **Step 4.5: Re-export**
 
 Edit `src/index.ts`:
+
 ```typescript
 export * from './constants.js';
 export * from './saturation.js';
@@ -582,6 +654,7 @@ git commit -m "feat(physics): compressible orifice mass flow (choked + subsonic)
 ## Task 5: F0 accumulator — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/f0.test.ts`
 - Create: `packages/physics/src/f0.ts`
 
@@ -662,6 +735,7 @@ export class F0Accumulator {
 - [ ] **Step 5.5: Re-export**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './f0.js';
 ```
@@ -678,6 +752,7 @@ git commit -m "feat(physics): F0 accumulator (lethality integrator)"
 ## Task 6: Chamber — pressure + state (TDD, no step yet)
 
 **Files:**
+
 - Create: `packages/physics/test/chamber.test.ts` (partial)
 - Create: `packages/physics/src/chamber.ts` (partial)
 
@@ -783,6 +858,7 @@ git commit -m "feat(physics): chamber state + pressure computation (Dalton + sat
 ## Task 7: Chamber step (mass + energy balance + condensation) — TDD
 
 **Files:**
+
 - Modify: `packages/physics/test/chamber.test.ts` (append)
 - Modify: `packages/physics/src/chamber.ts` (append `chamber_step`)
 
@@ -793,7 +869,9 @@ git commit -m "feat(physics): chamber state + pressure computation (Dalton + sat
 import { chamber_step, type ChamberFluxes, type SpeciesFlow } from '../src/chamber.js';
 import { CV_AIR, CV_VAP, CP_LIQ } from '../src/constants.js';
 
-function zeroFlow(): SpeciesFlow { return { air: 0, vap: 0, liq: 0 }; }
+function zeroFlow(): SpeciesFlow {
+  return { air: 0, vap: 0, liq: 0 };
+}
 function noFlux(T_K: number): ChamberFluxes {
   return { inflow: zeroFlow(), inflow_T: T_K, outflow: zeroFlow(), Q_external: 0 };
 }
@@ -849,7 +927,9 @@ describe('chamber_step — energy balance', () => {
   it('cools when Q_external is negative (heat loss)', () => {
     const s = { m_air: 0.18, m_vap: 0, m_liq: 0, T: C_to_K(100) };
     const f: ChamberFluxes = {
-      inflow: zeroFlow(), inflow_T: C_to_K(100), outflow: zeroFlow(),
+      inflow: zeroFlow(),
+      inflow_T: C_to_K(100),
+      outflow: zeroFlow(),
       Q_external: -1000, // 1 kW loss
     };
     const next = chamber_step(s, params150L, f, 1);
@@ -902,7 +982,12 @@ export interface ChamberFluxes {
  * Single-step (explicit Euler) integration of chamber gas+vapor+liquid mass and energy balances.
  * Uses constant-cv assumption (ideal gas), latent heat handled via condensation step.
  */
-export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes, dt: number): ChamberState {
+export function chamber_step(
+  s: ChamberState,
+  p: ChamberParams,
+  f: ChamberFluxes,
+  dt: number,
+): ChamberState {
   // 1. Mass balance (provisional, before condensation)
   let m_air = s.m_air + (f.inflow.air - f.outflow.air) * dt;
   let m_vap = s.m_vap + (f.inflow.vap - f.outflow.vap) * dt;
@@ -915,10 +1000,8 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
   // 2. Energy balance: U_old + h_in·ṁ_in·dt − h_out·ṁ_out·dt + Q_external·dt
   // Reference enthalpies to 0 K; cp for gases (constant-cp), cp_liq for liquid.
   const U_old = s.m_air * CV_AIR * s.T + s.m_vap * CV_VAP * s.T + s.m_liq * CP_LIQ * s.T;
-  const H_in =
-    (f.inflow.air * CP_AIR + f.inflow.vap * CP_VAP + f.inflow.liq * CP_LIQ) * f.inflow_T;
-  const H_out =
-    (f.outflow.air * CP_AIR + f.outflow.vap * CP_VAP + f.outflow.liq * CP_LIQ) * s.T;
+  const H_in = (f.inflow.air * CP_AIR + f.inflow.vap * CP_VAP + f.inflow.liq * CP_LIQ) * f.inflow_T;
+  const H_out = (f.outflow.air * CP_AIR + f.outflow.vap * CP_VAP + f.outflow.liq * CP_LIQ) * s.T;
   const U_new = U_old + (H_in - H_out + f.Q_external) * dt;
 
   // 3. Solve T from U_new with provisional masses
@@ -929,7 +1012,8 @@ export function chamber_step(s: ChamberState, p: ChamberParams, f: ChamberFluxes
   // If m_vap exceeds max at T, excess condenses, releasing latent heat → raises T.
   // Solve iteratively (one or two iterations enough for typical dt).
   for (let iter = 0; iter < 3; iter++) {
-    const p_sat = (() => { // inline import use to avoid circular
+    const p_sat = (() => {
+      // inline import use to avoid circular
       const t_C = T - 273.15;
       const p_mmHg = Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C));
       return p_mmHg * 133.322;
@@ -963,6 +1047,7 @@ Note: the inline `p_sat` calculation duplicates `saturation.ts` to avoid a circu
 - [ ] **Step 7.5: Re-export**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './chamber.js';
 ```
@@ -979,6 +1064,7 @@ git commit -m "feat(physics): chamber step (mass+energy balance, condensation, s
 ## Task 8: Generator (pool boiling) — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/generator.test.ts`
 - Create: `packages/physics/src/generator.ts`
 
@@ -987,7 +1073,12 @@ git commit -m "feat(physics): chamber step (mass+energy balance, condensation, s
 ```typescript
 // test/generator.test.ts
 import { describe, it, expect } from 'vitest';
-import { generator_step, generator_pressure, type GeneratorState, type GeneratorParams } from '../src/generator.js';
+import {
+  generator_step,
+  generator_pressure,
+  type GeneratorState,
+  type GeneratorParams,
+} from '../src/generator.js';
 import { C_to_K, Pa_to_bar } from '../src/constants.js';
 
 const gen24kW: GeneratorParams = { V_total: 0.05, heater_power_W: 24000 };
@@ -1068,7 +1159,13 @@ export function generator_pressure(s: GeneratorState, p: GeneratorParams): numbe
  * then boils off (mass moves liq→vap, T pinned to T_sat(p)).
  * Outflow_vap drawn first, then heater raises T or generates vapor.
  */
-export function generator_step(s: GeneratorState, p: GeneratorParams, heater_on: boolean, outflow_vap: number, dt: number): GeneratorState {
+export function generator_step(
+  s: GeneratorState,
+  p: GeneratorParams,
+  heater_on: boolean,
+  outflow_vap: number,
+  dt: number,
+): GeneratorState {
   // Remove outflow vapor first
   let m_water_vap = Math.max(s.m_water_vap - outflow_vap * dt, 0);
   let m_water_liq = s.m_water_liq;
@@ -1118,6 +1215,7 @@ function T_sat_from_p(P_Pa: number): number {
 - [ ] **Step 8.5: Re-export**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './generator.js';
 ```
@@ -1134,6 +1232,7 @@ git commit -m "feat(physics): pool-boiling steam generator"
 ## Task 9: Load (2-mass thermal cascade) — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/load.test.ts`
 - Create: `packages/physics/src/load.ts`
 
@@ -1146,10 +1245,12 @@ import { load_step, type LoadState, type LoadParams } from '../src/load.js';
 import { C_to_K } from '../src/constants.js';
 
 const standardLoad: LoadParams = {
-  m_metal: 20, cp_metal: 500,         // 20 kg metal, cp ≈ 500 J/(kg·K) typical stainless
-  m_fabric: 5, cp_fabric: 1500,       // 5 kg fabric, cp ≈ 1500 J/(kg·K)
-  h_gas_metal: 500,                   // W/K typical for forced convection on metal
-  h_metal_fabric: 30,                 // W/K conductive, much lower
+  m_metal: 20,
+  cp_metal: 500, // 20 kg metal, cp ≈ 500 J/(kg·K) typical stainless
+  m_fabric: 5,
+  cp_fabric: 1500, // 5 kg fabric, cp ≈ 1500 J/(kg·K)
+  h_gas_metal: 500, // W/K typical for forced convection on metal
+  h_metal_fabric: 30, // W/K conductive, much lower
 };
 
 describe('load_step', () => {
@@ -1234,6 +1335,7 @@ export function load_step(s: LoadState, p: LoadParams, T_gas: number, dt: number
 - [ ] **Step 9.5: Re-export**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './load.js';
 ```
@@ -1250,6 +1352,7 @@ git commit -m "feat(physics): 2-mass thermal load with witness sensor"
 ## Task 10: Integrator (system orchestrator) — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/integrator.test.ts`
 - Create: `packages/physics/src/integrator.ts`
 
@@ -1261,7 +1364,16 @@ The integrator wires CVs together via valves. It reads valve commands, computes 
 // test/integrator.test.ts
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../src/integrator.js';
-import { R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, P_ATM, C_to_K, Pa_to_bar, bar_to_Pa } from '../src/constants.js';
+import {
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  P_ATM,
+  C_to_K,
+  Pa_to_bar,
+  bar_to_Pa,
+} from '../src/constants.js';
 import { p_sat_water } from '../src/saturation.js';
 
 function basicParams(): SystemParams {
@@ -1270,15 +1382,31 @@ function basicParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 500, h_metal_fabric: 30,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 500,
+      h_metal_fabric: 30,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 5e-6, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -1309,7 +1437,8 @@ describe('system_step', () => {
     const s = basicState();
     const p = basicParams();
     let cur = s;
-    for (let i = 0; i < 3000; i++) { // 30 s
+    for (let i = 0; i < 3000; i++) {
+      // 30 s
       cur = system_step(cur, p, { V_VAC: true }, { heater_gen: false, pump_vac: true }, 0.01);
     }
     // Chamber pressure should drop significantly (target ~0.1 bar)
@@ -1324,8 +1453,15 @@ describe('system_step', () => {
     s.generator!.T = C_to_K(150);
     s.generator!.m_water_vap = 0.5;
     let cur = s;
-    for (let i = 0; i < 1500; i++) { // 15 s
-      cur = system_step(cur, p, { V_STEAM_IN_INT: true }, { heater_gen: true, pump_vac: false }, 0.01);
+    for (let i = 0; i < 1500; i++) {
+      // 15 s
+      cur = system_step(
+        cur,
+        p,
+        { V_STEAM_IN_INT: true },
+        { heater_gen: true, pump_vac: false },
+        0.01,
+      );
     }
     expect(cur.chamber.T).toBeGreaterThan(C_to_K(60));
     expect(cur.chamber.m_vap).toBeGreaterThan(0);
@@ -1336,7 +1472,8 @@ describe('system_step', () => {
     const p = basicParams();
     s.load = { T_metal: C_to_K(134), T_fabric: C_to_K(134) };
     let cur = s;
-    for (let i = 0; i < 6000; i++) { // 60 s
+    for (let i = 0; i < 6000; i++) {
+      // 60 s
       cur = system_step(cur, p, {}, { heater_gen: false, pump_vac: false }, 0.01);
     }
     // ~1 minute at 134°C → F0 ≈ 19.5
@@ -1348,7 +1485,8 @@ describe('system_step', () => {
     const p = basicParams();
     s.chamber.m_air = s.chamber.m_air * 0.01; // simulate post-vacuum chamber
     let cur = s;
-    for (let i = 0; i < 1000; i++) { // 10 s
+    for (let i = 0; i < 1000; i++) {
+      // 10 s
       cur = system_step(cur, p, { V_AIR_IN: true }, { heater_gen: false, pump_vac: false }, 0.01);
     }
     expect(cur.chamber.m_air).toBeGreaterThan(s.chamber.m_air);
@@ -1365,12 +1503,18 @@ describe('system_step', () => {
 ```typescript
 import { F0Accumulator } from './f0.js';
 import {
-  chamber_step, chamber_pressure,
-  type ChamberState, type ChamberParams, type ChamberFluxes, type SpeciesFlow,
+  chamber_step,
+  chamber_pressure,
+  type ChamberState,
+  type ChamberParams,
+  type ChamberFluxes,
+  type SpeciesFlow,
 } from './chamber.js';
 import {
-  generator_step, generator_pressure,
-  type GeneratorState, type GeneratorParams,
+  generator_step,
+  generator_pressure,
+  type GeneratorState,
+  type GeneratorParams,
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { choked_flow, type ValveParams } from './valve.js';
@@ -1454,10 +1598,16 @@ interface FlowAccum {
   inflow_T_mass: number;
 }
 
-function emptyAccum(): FlowAccum { return { air_in: 0, vap_in: 0, air_out: 0, vap_out: 0, inflow_T_weighted: 0, inflow_T_mass: 0 }; }
+function emptyAccum(): FlowAccum {
+  return { air_in: 0, vap_in: 0, air_out: 0, vap_out: 0, inflow_T_weighted: 0, inflow_T_mass: 0 };
+}
 
-function speciesIn(a: FlowAccum): SpeciesFlow { return { air: a.air_in, vap: a.vap_in, liq: 0 }; }
-function speciesOut(a: FlowAccum): SpeciesFlow { return { air: a.air_out, vap: a.vap_out, liq: 0 }; }
+function speciesIn(a: FlowAccum): SpeciesFlow {
+  return { air: a.air_in, vap: a.vap_in, liq: 0 };
+}
+function speciesOut(a: FlowAccum): SpeciesFlow {
+  return { air: a.air_out, vap: a.vap_out, liq: 0 };
+}
 function inflowT(a: FlowAccum, fallback: number): number {
   return a.inflow_T_mass > 0 ? a.inflow_T_weighted / a.inflow_T_mass : fallback;
 }
@@ -1587,6 +1737,7 @@ If tests fail because of tuning (e.g., chamber doesn't pressurize fast enough wi
 - [ ] **Step 10.5: Re-export**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './integrator.js';
 ```
@@ -1603,6 +1754,7 @@ git commit -m "feat(physics): system integrator (composes CVs via valves)"
 ## Task 11: CSV trace utility — TDD
 
 **Files:**
+
 - Create: `packages/physics/test/csv-trace.test.ts`
 - Create: `packages/physics/src/csv-trace.ts`
 
@@ -1688,6 +1840,7 @@ export class CsvTrace<C extends string> {
 - [ ] **Step 11.5: Re-export and commit**
 
 Append to `src/index.ts`:
+
 ```typescript
 export * from './csv-trace.js';
 ```
@@ -1702,6 +1855,7 @@ git commit -m "feat(physics): CSV trace utility for scenario output"
 ## Task 12: Scenario test — 121°C gravity (integration)
 
 **Files:**
+
 - Create: `packages/physics/test/scenarios/ster-121-gravity.test.ts`
 
 This is an INTEGRATION test that drives the system through a full 121°C gravity-displacement cycle and asserts qualitative correctness.
@@ -1711,10 +1865,18 @@ This is an INTEGRATION test that drives the system through a full 121°C gravity
 ```typescript
 // test/scenarios/ster-121-gravity.test.ts
 import { describe, it, expect } from 'vitest';
+import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
 import {
-  system_step, type SystemState, type SystemParams,
-} from '../../src/integrator.js';
-import { GAMMA_AIR, GAMMA_VAP, R_AIR, R_VAP, P_ATM, C_to_K, K_to_C, Pa_to_bar, bar_to_Pa } from '../../src/constants.js';
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_AIR,
+  R_VAP,
+  P_ATM,
+  C_to_K,
+  K_to_C,
+  Pa_to_bar,
+  bar_to_Pa,
+} from '../../src/constants.js';
 import { chamber_pressure } from '../../src/chamber.js';
 
 const dt = 0.05; // 50 ms steps for faster runtime; scenario lasts ~25 min sim time
@@ -1725,16 +1887,40 @@ function makeParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 500, h_metal_fabric: 30,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 500,
+      h_metal_fabric: 30,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 5e-7, gamma: GAMMA_VAP, R: R_VAP } },
-      V_STEAM_IN_JACKET: { from: 'generator', to: 'jacket', params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 5e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
+      V_STEAM_IN_JACKET: {
+        from: 'generator',
+        to: 'jacket',
+        params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -1765,12 +1951,24 @@ describe('Sterilization 121°C gravity cycle', () => {
     // Phase 1: vent (open exhaust) to displace air with steam — typical gravity displacement
     // Open exhaust + steam in for 3 min (vapor pushes air out by gravity)
     for (let t = 0; t < 180 / dt; t++) {
-      s = system_step(s, p, { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true, V_EXHAUST: true }, { heater_gen: true, pump_vac: false }, dt);
+      s = system_step(
+        s,
+        p,
+        { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true, V_EXHAUST: true },
+        { heater_gen: true, pump_vac: false },
+        dt,
+      );
     }
 
     // Phase 2: close exhaust, pressurize and hold 15 min @ 121°C
-    for (let t = 0; t < 15 * 60 / dt; t++) {
-      s = system_step(s, p, { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true }, { heater_gen: true, pump_vac: false }, dt);
+    for (let t = 0; t < (15 * 60) / dt; t++) {
+      s = system_step(
+        s,
+        p,
+        { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true },
+        { heater_gen: true, pump_vac: false },
+        dt,
+      );
     }
 
     expect(s.f0_minutes).toBeGreaterThanOrEqual(15);
@@ -1784,6 +1982,7 @@ describe('Sterilization 121°C gravity cycle', () => {
 `pnpm --filter @sim/physics test test/scenarios/ster-121-gravity.test.ts`.
 
 If F0 doesn't reach 15 in the simulated time, you have a tuning issue. Likely fixes:
+
 - Increase Cv of V_STEAM_IN_INT (more vapor entering)
 - Increase generator heater power
 - Reduce load mass (less thermal inertia)
@@ -1806,6 +2005,7 @@ git commit -m "test(physics): 121°C gravity sterilization cycle integration"
 ## Task 13: Scenario test — 134°C pre-vacuum (HEADLINE)
 
 **Files:**
+
 - Create: `packages/physics/test/scenarios/ster-134-prevac.test.ts`
 
 - [ ] **Step 13.1: Write the scenario test**
@@ -1814,7 +2014,17 @@ git commit -m "test(physics): 121°C gravity sterilization cycle integration"
 // test/scenarios/ster-134-prevac.test.ts
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
-import { GAMMA_AIR, GAMMA_VAP, R_AIR, R_VAP, P_ATM, C_to_K, K_to_C, Pa_to_bar, bar_to_Pa } from '../../src/constants.js';
+import {
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_AIR,
+  R_VAP,
+  P_ATM,
+  C_to_K,
+  K_to_C,
+  Pa_to_bar,
+  bar_to_Pa,
+} from '../../src/constants.js';
 import { chamber_pressure } from '../../src/chamber.js';
 
 const dt = 0.05;
@@ -1825,16 +2035,36 @@ function makeParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 500, h_metal_fabric: 30,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 500,
+      h_metal_fabric: 30,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-7, gamma: GAMMA_VAP, R: R_VAP } },
-      V_STEAM_IN_JACKET: { from: 'generator', to: 'jacket', params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
+      V_STEAM_IN_JACKET: {
+        from: 'generator',
+        to: 'jacket',
+        params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -1861,7 +2091,13 @@ function vacuumPulse(state: SystemState, p: SystemParams, duration_s: number): S
 function steamPulse(state: SystemState, p: SystemParams, duration_s: number): SystemState {
   let s = state;
   for (let t = 0; t < duration_s / dt; t++) {
-    s = system_step(s, p, { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true }, { heater_gen: true, pump_vac: false }, dt);
+    s = system_step(
+      s,
+      p,
+      { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true },
+      { heater_gen: true, pump_vac: false },
+      dt,
+    );
   }
   return s;
 }
@@ -1883,15 +2119,27 @@ describe('Sterilization 134°C pre-vacuum cycle (headline)', () => {
     }
 
     // Final pressurization until T_fabric ≥ 134°C (max 5 min)
-    const maxRamp = 5 * 60 / dt;
+    const maxRamp = (5 * 60) / dt;
     for (let t = 0; t < maxRamp; t++) {
-      s = system_step(s, p, { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true }, { heater_gen: true, pump_vac: false }, dt);
+      s = system_step(
+        s,
+        p,
+        { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true },
+        { heater_gen: true, pump_vac: false },
+        dt,
+      );
       if (K_to_C(s.load.T_fabric) >= 134) break;
     }
 
     // Hold 7 min
-    for (let t = 0; t < 7 * 60 / dt; t++) {
-      s = system_step(s, p, { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true }, { heater_gen: true, pump_vac: false }, dt);
+    for (let t = 0; t < (7 * 60) / dt; t++) {
+      s = system_step(
+        s,
+        p,
+        { V_STEAM_IN_INT: true, V_STEAM_IN_JACKET: true },
+        { heater_gen: true, pump_vac: false },
+        dt,
+      );
     }
 
     expect(s.f0_minutes).toBeGreaterThanOrEqual(100);
@@ -1907,6 +2155,7 @@ describe('Sterilization 134°C pre-vacuum cycle (headline)', () => {
 Tune Cv values until cycle behaves realistically. Vacuum should drop chamber pressure to <0.3 bar within 30 s; steam pulse should restore to ~2 bar within 30 s; final hold at 134°C should accumulate F0 ≈ 137 in 7 min.
 
 If tuning becomes extreme (Cv changes >10x), revisit the physics. Common bugs to check:
+
 - Chamber `Q_external` sign (should be negative when load absorbs heat from gas)
 - Condensation latent heat sign (releases heat into chamber when condensing)
 - Generator never crossing saturation (check `T_sat_from_p` bisection)
@@ -1923,6 +2172,7 @@ git commit -m "test(physics): 134°C pre-vacuum sterilization cycle integration"
 ## Task 14: Scenario test — drying (qualitative)
 
 **Files:**
+
 - Create: `packages/physics/test/scenarios/drying.test.ts`
 
 - [ ] **Step 14.1: Write the test**
@@ -1941,7 +2191,14 @@ describe('Drying phase', () => {
       chamber: { V: 0.15, allowLiquid: true },
       jacket: { V: 0.025, allowLiquid: false },
       generator: null,
-      load: { m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500, h_gas_metal: 500, h_metal_fabric: 30 },
+      load: {
+        m_metal: 20,
+        cp_metal: 500,
+        m_fabric: 5,
+        cp_fabric: 1500,
+        h_gas_metal: 500,
+        h_metal_fabric: 30,
+      },
       valves: {
         V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-5, gamma: GAMMA_AIR, R: R_AIR } },
       },
@@ -1958,7 +2215,8 @@ describe('Drying phase', () => {
     };
 
     const m_liq_initial = s.chamber.m_liq;
-    for (let t = 0; t < 900 / dt; t++) {  // 15 min vacuum
+    for (let t = 0; t < 900 / dt; t++) {
+      // 15 min vacuum
       s = system_step(s, p, { V_VAC: true }, { heater_gen: false, pump_vac: true }, dt);
     }
 
@@ -1972,10 +2230,14 @@ Note: this test will only pass if the chamber model implements evaporation when 
 If the test fails because liquid doesn't decrease, EXTEND `chamber_step` to add an evaporation term:
 
 Add inside `chamber_step` before the saturation loop:
+
 ```typescript
 // Evaporation: if liquid present and gas is sub-saturated, evaporate at rate proportional to deficit
 if (p.allowLiquid && m_liq > 0) {
-  const p_sat = (() => { const t_C = T - 273.15; return Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C)) * 133.322; })();
+  const p_sat = (() => {
+    const t_C = T - 273.15;
+    return Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C)) * 133.322;
+  })();
   const p_vap_now = (m_vap * R_VAP * T) / p.V;
   if (p_vap_now < p_sat) {
     const k_evap = 1e-7; // kg/(s·Pa) — empirical surface-evaporation coefficient
@@ -2022,6 +2284,7 @@ git commit -m "feat(physics): chamber evaporation + drying scenario test"
 ## Task 15: CLI scenario runner
 
 **Files:**
+
 - Create: `packages/physics/src/cli.ts`
 - Create: `packages/physics/scenarios/ster-134-prevac.yaml` (example scenario)
 
@@ -2043,14 +2306,14 @@ equipment:
     metal_kg: 20
     fabric_kg: 5
 steps:
-  - { t: 0,    valves: [V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-  - { t: 300,  valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 330,  valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-  - { t: 360,  valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 390,  valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-  - { t: 420,  valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 450,  valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-  - { t: 1050, valves: [V_EXHAUST], actuators: [HEATER_GEN] }      # exhaust
+  - { t: 0, valves: [V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 300, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 330, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 360, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 390, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 420, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 450, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 1050, valves: [V_EXHAUST], actuators: [HEATER_GEN] } # exhaust
   - { t: 1110, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] } # drying
 ```
 
@@ -2065,7 +2328,17 @@ import { system_step, type SystemState, type SystemParams } from './integrator.j
 import { CsvTrace } from './csv-trace.js';
 import { chamber_pressure } from './chamber.js';
 import { generator_pressure } from './generator.js';
-import { GAMMA_AIR, GAMMA_VAP, R_AIR, R_VAP, P_ATM, C_to_K, K_to_C, Pa_to_bar, bar_to_Pa } from './constants.js';
+import {
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_AIR,
+  R_VAP,
+  P_ATM,
+  C_to_K,
+  K_to_C,
+  Pa_to_bar,
+  bar_to_Pa,
+} from './constants.js';
 
 interface Scenario {
   name: string;
@@ -2087,18 +2360,41 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
     jacket: { V: eq.jacket_volume_l / 1000, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: eq.heater_kw * 1000 },
     load: {
-      m_metal: eq.load.metal_kg, cp_metal: 500,
-      m_fabric: eq.load.fabric_kg, cp_fabric: 1500,
-      h_gas_metal: 500, h_metal_fabric: 30,
+      m_metal: eq.load.metal_kg,
+      cp_metal: 500,
+      m_fabric: eq.load.fabric_kg,
+      cp_fabric: 1500,
+      h_gas_metal: 500,
+      h_metal_fabric: 30,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-7, gamma: GAMMA_VAP, R: R_VAP } },
-      V_STEAM_IN_JACKET: { from: 'generator', to: 'jacket', params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
+      V_STEAM_IN_JACKET: {
+        from: 'generator',
+        to: 'jacket',
+        params: { Cv: 1e-7, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-6, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -2119,7 +2415,20 @@ export function run(scenarioPath: string, outCsv: string): void {
   const params = makeParams(scn.equipment);
   let state = makeInitialState(params, scn.equipment);
 
-  const trace = new CsvTrace(['t_s', 'P_chamber_bar', 'P_jacket_bar', 'P_gen_bar', 'T_chamber_C', 'T_test_C', 'T_jacket_C', 'T_gen_C', 'F0_min', 'm_air_chamber', 'm_vap_chamber', 'm_liq_chamber']);
+  const trace = new CsvTrace([
+    't_s',
+    'P_chamber_bar',
+    'P_jacket_bar',
+    'P_gen_bar',
+    'T_chamber_C',
+    'T_test_C',
+    'T_jacket_C',
+    'T_gen_C',
+    'F0_min',
+    'm_air_chamber',
+    'm_vap_chamber',
+    'm_liq_chamber',
+  ]);
 
   // Sort steps by t
   const steps = [...scn.steps].sort((a, b) => a.t - b.t);
@@ -2176,7 +2485,9 @@ export function run(scenarioPath: string, outCsv: string): void {
 const isMain = (() => {
   try {
     return fileURLToPath(import.meta.url) === (process.argv[1] ? resolve(process.argv[1]) : '');
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 })();
 
 if (isMain) {
@@ -2213,6 +2524,7 @@ git commit -m "feat(physics): CLI scenario runner with YAML input + CSV trace ou
 ## Task 16: Smoke + finalize TODO
 
 **Files:**
+
 - Modify: `TODO.md`
 
 - [ ] **Step 16.1: Full local check**

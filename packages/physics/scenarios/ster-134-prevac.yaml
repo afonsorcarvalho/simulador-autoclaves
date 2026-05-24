@@ -1,0 +1,21 @@
+name: ster-134-prevac
+dt_s: 0.05
+duration_max_s: 1800
+equipment:
+  chamber_volume_l: 150
+  jacket_volume_l: 25
+  generator_water_l: 30
+  heater_kw: 24
+  load:
+    metal_kg: 20
+    fabric_kg: 5
+steps:
+  - { t: 0, valves: [V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 300, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 330, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 360, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 390, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 420, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 450, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 1050, valves: [V_EXHAUST], actuators: [HEATER_GEN] }
+  - { t: 1110, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
