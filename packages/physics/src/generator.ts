@@ -36,15 +36,13 @@ export function generator_step(
   const Q_in = heater_on ? p.heater_power_W * dt : 0;
   if (Q_in === 0) return { m_water_liq, m_water_vap, T };
 
-  // Saturation criterion:
-  // - If no vapor present (m_water_vap == 0): sub-cooled liquid, heat it until T reaches
-  //   the saturation temperature at the current saturation pressure (p_sat(T)).
-  //   In practice this means: heat until T would exceed T_sat(p_sat(T)) = T, which never
-  //   triggers — so we keep heating until the first vapor appears.
-  //   We switch to boiling when T >= T_sat at 1 atm = 100°C, or more simply when
-  //   T reaches the Antoine boiling point.
-  // - If vapor is already present (m_water_vap > 0): the two-phase region is active —
-  //   all heat input goes to latent heat (boiling), temperature stays at saturation.
+  // Generator is a sealed pressure vessel.
+  // Sub-saturated (no vapor yet): heat raises liquid T until first boiling begins at 1 atm.
+  // Saturated (liquid + vapor): heat evaporates liquid. Vessel is rigid volume V_total;
+  //   vapor fills headspace V_gas = V_total - m_liq/rho_liq.  After adding dm_vap, the
+  //   new vapor density in V_gas determines the pressure, and since liquid is still present,
+  //   T must satisfy p_sat(T) = P_vessel.  We use T_sat_from_p to update T.
+  const RHO_LIQ = 958.4; // kg/m³ water at ~100°C (good enough for autoclave range)
   const T_sat_1atm = T_sat_from_p(101325); // ≈ 373 K (100°C)
   const saturated = m_water_vap > 0 || T >= T_sat_1atm;
 
@@ -53,11 +51,16 @@ export function generator_step(
     const dT = Q_in / (m_water_liq * CP_LIQ);
     T = Math.min(T + dT, T_sat_1atm);
   } else if (m_water_liq > 0) {
-    // Two-phase (saturated): heater boils water — energy goes entirely to latent heat
+    // Two-phase saturated: heat evaporates liquid; pressure (and T) climb along saturation curve.
     const dm_vap = Q_in / h_vap_water(T);
     const dm_actual = Math.min(dm_vap, m_water_liq);
     m_water_liq -= dm_actual;
     m_water_vap += dm_actual;
+    // Update T to new saturation temperature in the closed vessel.
+    const V_liq = m_water_liq / RHO_LIQ;
+    const V_gas = Math.max(p.V_total - V_liq, 1e-6);
+    const P_vessel = (m_water_vap * R_VAP * T) / V_gas;
+    T = T_sat_from_p(Math.max(P_vessel, 101325)); // floor at 1 atm
   }
 
   return { m_water_liq, m_water_vap, T };
