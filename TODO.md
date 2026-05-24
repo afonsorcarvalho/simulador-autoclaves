@@ -2,7 +2,7 @@
 
 ## Em curso
 
-- Sub-projeto 2 — Modelo físico standalone (packages/physics: saturação, valve, chamber, jacket, generator, load, f0 + testes)
+(vazio — escolher próximo sub-projeto)
 
 ## Pendente
 
@@ -16,4 +16,5 @@
 
 ## Feito
 
+- 2026-05-24 — Sub-projeto 2 — Modelo físico standalone (packages/physics: saturação Antoine, choked flow, chamber+jacket c/ evaporação+condensação+saturação, generator pressure-vessel boiling, load 2-mass c/ testemunho, F0, integrator, CLI scenario YAML+CSV. Cenários 121°C gravidade + 134°C prevac + drying verdes. 57 vitest tests)
 - 2026-05-23 — Sub-projeto 1 — Foundation (monorepo pnpm+turbo, packages/protocol gerando TS+C++ de registers.yaml com testes e drift-check em CI)
