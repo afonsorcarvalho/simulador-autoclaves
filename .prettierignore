@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+build/
+out/
+pnpm-lock.yaml
+packages/protocol/dist/registers.ts
+packages/protocol/dist/registers.h
+.remember/

@@ -1,0 +1,20 @@
+# TODO
+
+## Em curso
+
+(vazio — escolher próximo sub-projeto)
+
+## Pendente
+
+- Sub-projeto 2 — Modelo físico standalone (packages/physics: saturação, valve, chamber, jacket, generator, load, f0 + testes)
+- Sub-projeto 3 — Orchestrator + virtual bridge + scenario runner (cenário 134°C verde)
+- Sub-projeto 4 — Dashboard MVP (live + virtual-plc + equipment CRUD + WS)
+- Sub-projeto 5 — Firmware ESP32 + Modbus slave (I/O + watchdog + fast model)
+- Sub-projeto 6 — Injeção de falhas (hooks orchestrator + UI faults + cenários)
+- Sub-projeto 7 — Placa condicionamento KiCad (schematic + PCB + BOM)
+- Sub-projeto 8 — PLC-in-loop aceitação (PLC real, ajustes finais, QA arquivada)
+- Sub-projeto 9 — Mímico SVG + cycles history + replay
+
+## Feito
+
+- 2026-05-23 — Sub-projeto 1 — Foundation (monorepo pnpm+turbo, packages/protocol gerando TS+C++ de registers.yaml com testes e drift-check em CI)

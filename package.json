@@ -1,0 +1,29 @@
+{
+  "name": "simulador-autoclaves",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hardware-in-the-loop emulator for steam autoclaves (ESP32 + Next.js + thermodynamic model)",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "generate": "turbo run generate",
+    "drift-check": "pnpm generate && git diff --exit-code packages/protocol/dist",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^20.16.0",
+    "eslint": "^9.10.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.59.4"
+  }
+}

@@ -1,0 +1,249 @@
+version: 1
+
+# Modbus address spaces. base..end inclusive. address of each register must fall within its space's range.
+spaces:
+  discrete_inputs:
+    base: 0x0000
+    end: 0x0FFF
+    description: 'PLC outputs read by ESP32 (valve/relay commands). PC master reads only.'
+  coils:
+    base: 0x1000
+    end: 0x1FFF
+    description: 'Discrete signals ESP32 publishes to PLC (pressure switches, limit switches, levels). PC master writes.'
+  input_registers:
+    base: 0x2000
+    end: 0x2FFF
+    description: 'Reserved for future analog inputs from the PLC (e.g., active PT100). Not used in v1.'
+  holding_registers:
+    base: 0x3000
+    end: 0x3FFF
+    description: 'Analog values PC sends ESP32 for DAC 4-20mA and PT100 simulation. int16 with per-register scale.'
+  diagnostics:
+    base: 0x4000
+    end: 0x4FFF
+    description: 'Tick counter, watchdog, F0, fault mask, time scale, equipment id.'
+
+registers:
+  # --- Discrete Inputs: PLC commands seen by ESP32 ---
+  - {
+      id: V_STEAM_IN_INT,
+      space: discrete_inputs,
+      address: 0x0000,
+      description: 'Steam inlet valve, internal chamber',
+    }
+  - {
+      id: V_STEAM_IN_JACKET,
+      space: discrete_inputs,
+      address: 0x0001,
+      description: 'Steam inlet valve, jacket',
+    }
+  - {
+      id: V_AIR_IN,
+      space: discrete_inputs,
+      address: 0x0002,
+      description: 'Air admission valve (HEPA filtered, post-cycle)',
+    }
+  - { id: V_VAC, space: discrete_inputs, address: 0x0003, description: 'Vacuum line valve' }
+  - { id: V_EXHAUST, space: discrete_inputs, address: 0x0004, description: 'Chamber exhaust valve' }
+  - {
+      id: V_DRAIN_INT,
+      space: discrete_inputs,
+      address: 0x0005,
+      description: 'Internal chamber drain (condensate)',
+    }
+  - {
+      id: V_DRAIN_JACKET,
+      space: discrete_inputs,
+      address: 0x0006,
+      description: 'Jacket drain (condensate)',
+    }
+  - {
+      id: V_SEAL_CLEAN,
+      space: discrete_inputs,
+      address: 0x0007,
+      description: 'Door seal pressurization, clean side',
+    }
+  - {
+      id: V_SEAL_STERILE,
+      space: discrete_inputs,
+      address: 0x0008,
+      description: 'Door seal pressurization, sterile side',
+    }
+  - {
+      id: V_GEN_WATER_IN,
+      space: discrete_inputs,
+      address: 0x0009,
+      description: 'Generator make-up water valve',
+    }
+  - { id: PUMP_VAC, space: discrete_inputs, address: 0x000A, description: 'Vacuum pump relay' }
+  - {
+      id: HEATER_GEN,
+      space: discrete_inputs,
+      address: 0x000B,
+      description: 'Generator heater (electric resistance) relay',
+    }
+  - {
+      id: COMPRESSOR,
+      space: discrete_inputs,
+      address: 0x000C,
+      description: 'Air compressor relay (if present)',
+    }
+
+  # --- Coils: states ESP32 publishes back to PLC ---
+  - {
+      id: PS_STEAM_LINE,
+      space: coils,
+      address: 0x1000,
+      description: 'Pressure switch: steam line OK (above threshold)',
+    }
+  - {
+      id: PS_AIR_LINE,
+      space: coils,
+      address: 0x1001,
+      description: 'Pressure switch: compressed air line OK',
+    }
+  - {
+      id: PS_SEAL_CLEAN,
+      space: coils,
+      address: 0x1002,
+      description: 'Pressure switch: clean-side door seal pressurized',
+    }
+  - {
+      id: PS_SEAL_STERILE,
+      space: coils,
+      address: 0x1003,
+      description: 'Pressure switch: sterile-side door seal pressurized',
+    }
+  - {
+      id: LS_DOOR_CLEAN_OPEN,
+      space: coils,
+      address: 0x1004,
+      description: 'Limit switch: clean-side door open',
+    }
+  - {
+      id: LS_DOOR_CLEAN_CLOSED,
+      space: coils,
+      address: 0x1005,
+      description: 'Limit switch: clean-side door closed',
+    }
+  - {
+      id: LS_DOOR_STERILE_OPEN,
+      space: coils,
+      address: 0x1006,
+      description: 'Limit switch: sterile-side door open',
+    }
+  - {
+      id: LS_DOOR_STERILE_CLOSED,
+      space: coils,
+      address: 0x1007,
+      description: 'Limit switch: sterile-side door closed',
+    }
+  - {
+      id: LVL_GEN_MIN,
+      space: coils,
+      address: 0x1008,
+      description: 'Generator water level: above minimum',
+    }
+  - {
+      id: LVL_GEN_MAX,
+      space: coils,
+      address: 0x1009,
+      description: 'Generator water level: above maximum',
+    }
+  - {
+      id: EMERGENCY_BTN,
+      space: coils,
+      address: 0x100A,
+      description: 'Emergency stop pressed (active low typical, polarity per equipment)',
+    }
+
+  # --- Holding registers: analog values PC -> ESP32 (DAC + PT100 sim) ---
+  - id: P_CHAMBER_INT
+    space: holding_registers
+    address: 0x3000
+    scale: 1000
+    unit: bar_abs
+    range: [-1.0, 5.0]
+    description: 'Internal chamber pressure (absolute). int16 / 1000 = bar abs. Sentinels: -32768=OPEN, 32767=SHORT.'
+  - id: P_CHAMBER_EXT
+    space: holding_registers
+    address: 0x3001
+    scale: 1000
+    unit: bar_abs
+    range: [0.0, 5.0]
+    description: 'Jacket (external chamber) pressure. int16 / 1000 = bar abs.'
+  - id: P_GENERATOR
+    space: holding_registers
+    address: 0x3002
+    scale: 1000
+    unit: bar_abs
+    range: [0.0, 6.0]
+    description: 'Generator pressure. int16 / 1000 = bar abs.'
+  - id: T_CHAMBER_INT
+    space: holding_registers
+    address: 0x3010
+    scale: 100
+    unit: celsius
+    range: [-50.0, 200.0]
+    description: 'Internal chamber gas temperature. int16 / 100 = celsius. Sentinels: -32768=OPEN, 32767=SHORT.'
+  - id: T_TESTEMUNHO
+    space: holding_registers
+    address: 0x3011
+    scale: 100
+    unit: celsius
+    range: [-50.0, 200.0]
+    description: 'Witness sensor temperature (embedded in load fabric).'
+  - id: T_CHAMBER_EXT
+    space: holding_registers
+    address: 0x3012
+    scale: 100
+    unit: celsius
+    range: [-50.0, 200.0]
+    description: 'Jacket temperature.'
+  - id: T_GENERATOR
+    space: holding_registers
+    address: 0x3013
+    scale: 100
+    unit: celsius
+    range: [0.0, 200.0]
+    description: 'Generator temperature.'
+
+  # --- Diagnostics ---
+  - {
+      id: MODEL_TICK_LOW,
+      space: diagnostics,
+      address: 0x4000,
+      type: uint16,
+      description: 'Low 16 bits of model tick counter',
+    }
+  - {
+      id: MODEL_TICK_HIGH,
+      space: diagnostics,
+      address: 0x4001,
+      type: uint16,
+      description: 'High 16 bits of model tick counter',
+    }
+  - id: WATCHDOG_MS
+    space: diagnostics
+    address: 0x4002
+    type: uint16
+    description: 'PC heartbeat. PC writes, ESP32 zeros on receive. ESP32 enters fail-safe if no write for >500 ms.'
+  - id: F0_X10
+    space: diagnostics
+    address: 0x4003
+    type: uint16
+    description: 'Accumulated F0 in equivalent minutes x10 (e.g., 137 means F0=13.7 min).'
+  - {
+      id: SIM_TIME_SCALE,
+      space: diagnostics,
+      address: 0x4020,
+      type: uint16,
+      description: 'Time scale x100 (100=1.0x, 200=2.0x, 50=0.5x)',
+    }
+  - {
+      id: EQUIPMENT_ID,
+      space: diagnostics,
+      address: 0x4030,
+      type: uint16,
+      description: '16-bit hash of currently active equipment config',
+    }

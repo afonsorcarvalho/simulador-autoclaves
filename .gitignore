@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+.turbo/
+build/
+out/
+*.tsbuildinfo
+
+# Test output
+coverage/
+.vitest-cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Claude scratchpad (memory buffer, not source)
+.remember/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Runtime
+~/.simulador-autoclaves/
+
+# Force-include generated protocol artifacts (drift-checked in CI)
+!packages/protocol/dist/
+packages/protocol/dist/*
+!packages/protocol/dist/registers.ts
+!packages/protocol/dist/registers.h

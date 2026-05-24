@@ -1,0 +1,25 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "generate": {
+      "inputs": ["registers.yaml", "src/**", "package.json"],
+      "outputs": ["dist/**"]
+    },
+    "build": {
+      "dependsOn": ["generate", "^generate", "^build"],
+      "inputs": ["src/**", "package.json", "tsconfig.json", "../../tsconfig.base.json"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^generate"],
+      "inputs": ["src/**", "test/**", "package.json", "tsconfig.json", "../../tsconfig.base.json"]
+    },
+    "lint": {
+      "inputs": ["src/**", "test/**", "eslint.config.mjs", "package.json"]
+    },
+    "test": {
+      "dependsOn": ["^generate"],
+      "inputs": ["src/**", "test/**", "vitest.config.ts", "package.json"]
+    }
+  }
+}
