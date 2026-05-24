@@ -6,3 +6,4 @@ export * from './chamber.js';
 export * from './generator.js';
 export * from './load.js';
 export * from './integrator.js';
+export * from './csv-trace.js';
