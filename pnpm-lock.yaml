@@ -30,6 +30,31 @@ importers:
         specifier: ^8.59.4
         version: 8.59.4(eslint@9.39.4)(typescript@5.9.3)
 
+  packages/physics:
+    dependencies:
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^20.16.0
+        version: 20.19.41
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.41))
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.3
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.41)
+
   packages/protocol:
     dependencies:
       js-yaml:
