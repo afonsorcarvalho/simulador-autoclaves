@@ -42,6 +42,14 @@ export interface ChamberFluxes {
   Q_external: number; // W (positive = into chamber)
 }
 
+// Hard temperature bounds for the chamber/jacket control volumes.
+// Floor: 200 K (−73 °C, below the lowest possible dew-point during vacuum evacuation).
+// Ceiling: 493 K (220 °C, well above any autoclave operating range; steam tables degrade
+//   at higher temperatures under Antoine-equation extrapolation, so this is a hard guard).
+// These bounds are last-resort guards; normal physics should stay well within them.
+export const T_MIN_K = 200; // K  (−73.15 °C)
+export const T_MAX_K = 273.15 + 220; // K  (220 °C)
+
 /**
  * Single-step Euler integration. Mass + energy balances + saturation/condensation.
  * For jacket (allowLiquid=false), condensate is dropped (drips out instantly).
@@ -54,16 +62,23 @@ export function chamber_step(
 ): ChamberState {
   // 1. Provisional mass balance — clamp to zero to prevent negative masses.
   // Compute ACTUAL mass removed (capped at available) for energy accounting.
-  const dm_air_out_req = f.outflow.air * dt;
-  const dm_vap_out_req = f.outflow.vap * dt;
-  const dm_liq_out_req = f.outflow.liq * dt;
+  // Cap at 50% of available mass per step to prevent discretization-driven over-evacuation
+  // that would produce H_out > U_old and drive U_new negative.
   const dm_air_in = f.inflow.air * dt;
   const dm_vap_in = f.inflow.vap * dt;
   const dm_liq_in = f.inflow.liq * dt;
-  // Actual outflow cannot exceed available mass
-  const dm_air_out = Math.min(dm_air_out_req, Math.max(s.m_air + dm_air_in, 0));
-  const dm_vap_out = Math.min(dm_vap_out_req, Math.max(s.m_vap + dm_vap_in, 0));
-  const dm_liq_out = Math.min(dm_liq_out_req, Math.max(s.m_liq + dm_liq_in, 0));
+  const dm_air_out_req = f.outflow.air * dt;
+  const dm_vap_out_req = f.outflow.vap * dt;
+  const dm_liq_out_req = f.outflow.liq * dt;
+
+  // Max outflow: min(requested, 50% of available) — the 0.5 factor keeps one step from
+  // emptying the CV entirely, which would make H_out > U_old and invert T.
+  const avail_air = Math.max(s.m_air + dm_air_in, 0);
+  const avail_vap = Math.max(s.m_vap + dm_vap_in, 0);
+  const avail_liq = Math.max(s.m_liq + dm_liq_in, 0);
+  const dm_air_out = Math.min(dm_air_out_req, 0.5 * avail_air);
+  const dm_vap_out = Math.min(dm_vap_out_req, 0.5 * avail_vap);
+  const dm_liq_out = Math.min(dm_liq_out_req, 0.5 * avail_liq);
 
   let m_air = s.m_air + dm_air_in - dm_air_out;
   let m_vap = s.m_vap + dm_vap_in - dm_vap_out;
@@ -77,15 +92,26 @@ export function chamber_step(
   const U_old = s.m_air * CV_AIR * s.T + s.m_vap * CV_VAP * s.T + s.m_liq * CP_LIQ * s.T;
   const H_in = (dm_air_in * CP_AIR + dm_vap_in * CP_VAP + dm_liq_in * CP_LIQ) * f.inflow_T;
   const H_out = (dm_air_out * CP_AIR + dm_vap_out * CP_VAP + dm_liq_out * CP_LIQ) * s.T;
-  const U_new = U_old + H_in - H_out + f.Q_external * dt;
+
+  // Clamp U_new to [U_floor, U_ceil] to prevent T escaping sane bounds when the gas
+  // thermal mass is tiny (near-vacuum) and Q_external is large (high h_gas_metal).
+  // U_ceil corresponds to T_MAX_K; U_floor corresponds to T_MIN_K.
+  // This ensures that no matter how extreme Q_external or H_out become, T stays in
+  // [T_MIN_K, T_MAX_K].  This is the last resort: normal physics should stay within bounds.
+  const denom_pre_for_clamp = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+  const U_floor = denom_pre_for_clamp * T_MIN_K; // minimum sensible energy at T_MIN_K
+  const U_ceil = denom_pre_for_clamp * T_MAX_K; // maximum sensible energy at T_MAX_K
+  const U_raw = U_old + H_in - H_out + f.Q_external * dt;
+  const U_new = denom_pre_for_clamp > 0 ? Math.max(U_floor, Math.min(U_raw, U_ceil)) : U_raw;
 
   // 3. Solve T from U_new with provisional masses.
-  const T_MAX_K = 273.15 + 600; // 600 °C — hard cap, well above any autoclave condition
   const MIN_HEAT_CAP_JK = 500; // J/K — floor used only in condensation latent heat to prevent
   // T spikes when condensing large vapor mass into tiny liquid at near-vacuum (see step 4).
-  const denom_pre = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+  const denom_pre = denom_pre_for_clamp;
   let T = denom_pre > 0 ? U_new / denom_pre : s.T;
-  if (!isFinite(T) || T < 1 || T > T_MAX_K) T = Math.min(s.T, T_MAX_K);
+  // Hard bounds: clamp to [T_MIN_K, T_MAX_K] rather than preserving stale s.T
+  if (!isFinite(T)) T = s.T;
+  T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
 
   // 3.5. Evaporation: liquid → vapor when sub-saturated
   if (p.allowLiquid && m_liq > 0) {
