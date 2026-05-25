@@ -7,7 +7,6 @@ equipment:
   generator_water_l: 30
   heater_kw: 24
   # Generator safety valve setpoint: 4 bar absolute ≈ 144 °C saturation.
-  # Prevents unbounded pressure build-up during closed-valve phases.
   generator_relief_bar: 4
   load:
     metal_kg: 20
@@ -16,27 +15,25 @@ steps:
   # Phase 0 (0–300 s): pre-heat jacket + generator
   - { t: 0, valves: [V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
 
-  # Pre-vacuum pulse 1: evacuate 30 s then steam 30 s
+  # Pre-vacuum pulse 1: evacuate 60 s, then steam 60 s
   - { t: 300, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 330, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+  - { t: 360, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
 
-  # Pre-vacuum pulse 2: evacuate 30 s then steam 30 s
-  - { t: 360, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 390, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-
-  # Pre-vacuum pulse 3: evacuate 30 s then steam 30 s
+  # Pre-vacuum pulse 2: evacuate 60 s, then steam 60 s
   - { t: 420, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
-  - { t: 450, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
-
-  # Phase 3 (480–1100 s, ~10 min): sterilisation hold — pressurize to generator setpoint.
-  # Exhaust closed: chamber builds to ~4 bar / ~143 °C as steam displaces residual air.
-  # Generator relief at 4 bar bounds pressure. CLI uses h_gas_metal=200 / h_metal_fabric=100.
-  # T_fabric crosses 100°C at ~670 s, reaches 134°C at ~840 s; F0 accumulates at ~20 min/min.
-  # Target: F0 ≈ 50–2000 by end of hold (well within [50, 5000] gate).
   - { t: 480, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
 
-  # Phase 4 (1100–1300 s): exhaust + cool, heater off
-  - { t: 1100, valves: [V_EXHAUST], actuators: [] }
+  # Pre-vacuum pulse 3: evacuate 60 s, then steam 60 s
+  - { t: 540, valves: [V_VAC], actuators: [HEATER_GEN, PUMP_VAC] }
+  - { t: 600, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
 
-  # Phase 5 (1300–1800 s): vacuum drying
-  - { t: 1300, valves: [V_VAC], actuators: [PUMP_VAC] }
+  # Phase 3 (660–1300 s, ~10 min): sterilisation hold — pressurize to generator setpoint.
+  # Exhaust closed; chamber builds to ~4 bar / ~143 °C as steam displaces residual moisture.
+  # T_fabric crosses 134°C and F0 accumulates at ~20 min/min.
+  - { t: 660, valves: [V_STEAM_IN_INT, V_STEAM_IN_JACKET], actuators: [HEATER_GEN] }
+
+  # Phase 4 (1300–1450 s): exhaust + cool, heater off
+  - { t: 1300, valves: [V_EXHAUST], actuators: [] }
+
+  # Phase 5 (1450–1800 s): vacuum drying
+  - { t: 1450, valves: [V_VAC], actuators: [PUMP_VAC] }

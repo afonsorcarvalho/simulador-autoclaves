@@ -40,16 +40,18 @@ def plot(cols: dict[str, list[float]], save: Path | None, show: bool) -> None:
     fig, axes = plt.subplots(4, 1, figsize=(12, 11), sharex=True)
     fig.suptitle("Autoclave scenario trace", fontsize=14, fontweight="bold")
 
-    # 1. Pressures
+    # 1. Pressures — symlog so deep vacuum dips (0.01 bar) and 4-bar peaks both readable.
     ax = axes[0]
     ax.plot(t, cols["P_chamber_bar"], label="P_chamber", linewidth=1.5)
     ax.plot(t, cols["P_jacket_bar"], label="P_jacket", linewidth=1.2, alpha=0.8)
     ax.plot(t, cols["P_gen_bar"], label="P_generator", linewidth=1.2, alpha=0.8)
     ax.axhline(1.0, color="gray", linestyle=":", linewidth=0.7, label="1 atm")
     ax.axhline(3.04, color="red", linestyle=":", linewidth=0.7, label="134°C sat (3.04 bar)")
-    ax.set_ylabel("Pressure (bar abs)")
+    ax.set_yscale("symlog", linthresh=0.1)
+    ax.set_ylim(0, 10)
+    ax.set_ylabel("Pressure (bar abs)\nsymlog y, linthresh=0.1")
     ax.legend(loc="upper right", fontsize=8)
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, which="both", alpha=0.3)
 
     # 2. Temperatures
     ax = axes[1]
