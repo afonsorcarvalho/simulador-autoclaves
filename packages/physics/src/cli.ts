@@ -27,6 +27,8 @@ interface Scenario {
     jacket_volume_l: number;
     generator_water_l: number;
     heater_kw: number;
+    /** Relief pressure for the generator safety valve (bar absolute). Default: 4 bar. */
+    generator_relief_bar?: number;
     load: { metal_kg: number; fabric_kg: number };
   };
   steps: Array<{ t: number; valves: string[]; actuators: string[] }>;
@@ -36,14 +38,22 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
   return {
     chamber: { V: eq.chamber_volume_l / 1000, allowLiquid: true },
     jacket: { V: eq.jacket_volume_l / 1000, allowLiquid: false },
-    generator: { V_total: 0.05, heater_power_W: eq.heater_kw * 1000 },
+    generator: {
+      V_total: 0.05,
+      heater_power_W: eq.heater_kw * 1000,
+      relief_pressure_Pa: (eq.generator_relief_bar ?? 4) * 1e5,
+    },
     load: {
       m_metal: eq.load.metal_kg,
       cp_metal: 500,
       m_fabric: eq.load.fabric_kg,
       cp_fabric: 1500,
-      h_gas_metal: 500,
-      h_metal_fabric: 30,
+      // 200 W/K: realistic steam condensation coupling for an autoclave load in open-loop.
+      // (500 W/K is the flooding regime used in closed-loop test scenarios.)
+      h_gas_metal: 200,
+      // 100 W/K metal→fabric coupling: fabric wrapped around metal in a real pack.
+      // (30 W/K is a loose-contact scenario used in tests to exaggerate thermal lag.)
+      h_metal_fabric: 100,
     },
     valves: {
       V_STEAM_IN_INT: {
