@@ -134,3 +134,55 @@ describe('chamber_step — evaporation', () => {
     expect(cur.m_vap).toBeGreaterThan(s.m_vap);
   });
 });
+
+describe('chamber_step — wall thermal mass', () => {
+  const params150L_walled: ChamberParams = {
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
+  };
+
+  it('vacuum pulse does NOT crash T below freezing (with wall thermal mass)', () => {
+    const s: ChamberState = {
+      m_air: 0.18,
+      m_vap: 0,
+      m_liq: 0,
+      T: C_to_K(22),
+      T_wall: C_to_K(22),
+    };
+    const f: ChamberFluxes = {
+      inflow: zeroFlow(),
+      inflow_T: C_to_K(22),
+      outflow: { air: 0.05, vap: 0, liq: 0 }, // 50 g/s outflow (heavy vacuum)
+      Q_external: 0,
+    };
+    let cur: ChamberState = s;
+    for (let i = 0; i < 60; i++) cur = chamber_step(cur, params150L_walled, f, 1);
+    // With 25 kJ/K wall thermal mass, T should drop modestly (10–20°C max, not crash to -73°C)
+    expect(cur.T).toBeGreaterThan(C_to_K(0));
+    expect(cur.T).toBeLessThan(C_to_K(22));
+  });
+
+  it('wall warms up when gas is hot (heat sink behavior)', () => {
+    const s: ChamberState = {
+      m_air: 0.18,
+      m_vap: 0,
+      m_liq: 0,
+      T: C_to_K(140),
+      T_wall: C_to_K(22),
+    };
+    const next = chamber_step(s, params150L_walled, noFlux(s.T), 60); // 60 s with hot gas, no flows
+    expect(next.T_wall).toBeDefined();
+    expect(next.T_wall!).toBeGreaterThan(s.T_wall!);
+    expect(next.T).toBeLessThan(s.T); // gas cools as wall absorbs heat
+  });
+
+  it('back-compat: omitting wall_mass_kg gives original behavior (no wall coupling)', () => {
+    const s: ChamberState = { m_air: 0.18, m_vap: 0, m_liq: 0, T: C_to_K(100) };
+    const next = chamber_step(s, params150L, noFlux(s.T), 1); // params150L has no wall
+    expect(next.T).toBeCloseTo(s.T, 4);
+    expect(next.T_wall).toBeUndefined();
+  });
+});

@@ -6,11 +6,18 @@ export interface ChamberState {
   m_vap: number; // kg
   m_liq: number; // kg
   T: number; // K
+  T_wall?: number; // K — wall temperature; if undefined, defaults to T at first step
 }
 
 export interface ChamberParams {
   V: number; // m³
   allowLiquid: boolean; // false for jacket (vapor only; condensate drips out)
+  /** Mass of the metallic wall in thermal contact with the gas (kg). Default: 0 (no wall model). */
+  wall_mass_kg?: number;
+  /** Specific heat of the wall material (J/(kg·K)). Default: 500 (stainless steel). */
+  wall_cp_J_per_kg_K?: number;
+  /** Convective heat-transfer coefficient gas↔wall (W/K). Default: 200. */
+  wall_h_W_per_K?: number;
 }
 
 export interface ChamberPressureBreakdown {
@@ -113,6 +120,38 @@ export function chamber_step(
   if (!isFinite(T)) T = s.T;
   T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
 
+  // 3.2. Wall thermal mass coupling (gas ↔ wall heat exchange via implicit-Euler).
+  // The wall acts as a thermal reservoir that damps fast T transients during vacuum pulses.
+  // If wall_mass_kg is zero or undefined the model is bypassed (back-compat).
+  const wall_mass = p.wall_mass_kg ?? 0;
+  const wall_cp = p.wall_cp_J_per_kg_K ?? 500;
+  const wall_h = p.wall_h_W_per_K ?? 200;
+  const wall_C = wall_mass * wall_cp; // J/K
+  let T_wall: number | undefined;
+
+  if (wall_C > 0 && wall_h > 0) {
+    // Initialize T_wall from state, defaulting to current gas T if not set.
+    const T_wall_prev = s.T_wall ?? s.T;
+    const gas_C = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+    if (gas_C > 0) {
+      // Symmetric implicit-Euler update for the coupled gas+wall system.
+      // Both sub-systems relax to a shared steady-state T_inf with time constant tau.
+      // dT_gas/dt  = -h/gas_C  * (T_gas  - T_wall)
+      // dT_wall/dt =  h/wall_C * (T_gas  - T_wall)
+      const T_inf = (gas_C * T + wall_C * T_wall_prev) / (gas_C + wall_C);
+      const tau = (gas_C * wall_C) / (wall_h * (gas_C + wall_C));
+      const decay = Math.exp(-dt / tau);
+      T = T_inf + (T - T_inf) * decay;
+      T_wall = T_inf + (T_wall_prev - T_inf) * decay;
+      // Keep T within hard bounds after wall exchange
+      T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
+    } else {
+      // No gas mass — wall stays at previous temperature
+      T_wall = s.T_wall ?? s.T;
+    }
+  }
+  // If no wall model: T_wall remains undefined (back-compat)
+
   // 3.5. Evaporation: liquid → vapor when sub-saturated
   if (p.allowLiquid && m_liq > 0) {
     const t_C_evap = T - 273.15;
@@ -160,5 +199,5 @@ export function chamber_step(
     } // guard against residual runaway
   }
 
-  return { m_air, m_vap, m_liq, T };
+  return T_wall !== undefined ? { m_air, m_vap, m_liq, T, T_wall } : { m_air, m_vap, m_liq, T };
 }
