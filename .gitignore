@@ -28,6 +28,11 @@ logs/
 # Claude scratchpad (memory buffer, not source)
 .remember/
 
+# Script output (plots, CSV exports)
+scripts/*.png
+scripts/*.csv
+scripts/__pycache__/
+
 # Env
 .env
 .env.local
