@@ -29,6 +29,10 @@ interface Scenario {
     heater_kw: number;
     /** Relief pressure for the generator safety valve (bar absolute). Default: 4 bar. */
     generator_relief_bar?: number;
+    /** Wall thermal mass of the chamber (kg stainless). Default: 50 kg. */
+    chamber_wall_mass_kg?: number;
+    /** Wall thermal mass of the jacket (kg stainless). Default: 15 kg. */
+    jacket_wall_mass_kg?: number;
     load: { metal_kg: number; fabric_kg: number };
   };
   steps: Array<{ t: number; valves: string[]; actuators: string[] }>;
@@ -36,8 +40,20 @@ interface Scenario {
 
 function makeParams(eq: Scenario['equipment']): SystemParams {
   return {
-    chamber: { V: eq.chamber_volume_l / 1000, allowLiquid: true },
-    jacket: { V: eq.jacket_volume_l / 1000, allowLiquid: false },
+    chamber: {
+      V: eq.chamber_volume_l / 1000,
+      allowLiquid: true,
+      wall_mass_kg: eq.chamber_wall_mass_kg ?? 50, // typical 150 L stainless autoclave chamber
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+    },
+    jacket: {
+      V: eq.jacket_volume_l / 1000,
+      allowLiquid: false,
+      wall_mass_kg: eq.jacket_wall_mass_kg ?? 15, // smaller jacket
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: {
       V_total: 0.05,
       heater_power_W: eq.heater_kw * 1000,
@@ -89,8 +105,20 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
 function makeInitialState(p: SystemParams, eq: Scenario['equipment']): SystemState {
   const T = C_to_K(22);
   return {
-    chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
-    jacket: { m_air: (P_ATM * p.jacket.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
+    chamber: {
+      m_air: (P_ATM * p.chamber.V) / (R_AIR * T),
+      m_vap: 0,
+      m_liq: 0,
+      T,
+      T_wall: T, // wall starts at ambient temperature
+    },
+    jacket: {
+      m_air: (P_ATM * p.jacket.V) / (R_AIR * T),
+      m_vap: 0,
+      m_liq: 0,
+      T,
+      T_wall: T, // wall starts at ambient temperature
+    },
     generator: { m_water_liq: eq.generator_water_l, m_water_vap: 0, T: C_to_K(22) },
     load: { T_metal: T, T_fabric: T },
     f0_minutes: 0,

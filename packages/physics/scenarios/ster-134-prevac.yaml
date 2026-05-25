@@ -8,6 +8,11 @@ equipment:
   heater_kw: 24
   # Generator safety valve setpoint: 4 bar absolute ≈ 144 °C saturation.
   generator_relief_bar: 4
+  # Wall thermal mass: 50 kg stainless for chamber, 15 kg for jacket.
+  # These buffer T during vacuum pulses (25 kJ/K vs ~130 J/K gas-only).
+  # Omit to use these defaults.
+  chamber_wall_mass_kg: 50
+  jacket_wall_mass_kg: 15
   load:
     metal_kg: 20
     fabric_kg: 5
