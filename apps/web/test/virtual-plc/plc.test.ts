@@ -19,7 +19,11 @@ function makeCycle(): CycleConfig {
   };
 }
 
-async function setup(): Promise<{ bridge: VirtualEsp32Bridge; access: RegisterAccess; plc: VirtualPLC }> {
+async function setup(): Promise<{
+  bridge: VirtualEsp32Bridge;
+  access: RegisterAccess;
+  plc: VirtualPLC;
+}> {
   const bridge = new VirtualEsp32Bridge();
   await bridge.connect();
   const access = new RegisterAccess(bridge);
@@ -27,7 +31,10 @@ async function setup(): Promise<{ bridge: VirtualEsp32Bridge; access: RegisterAc
   return { bridge, access, plc };
 }
 
-async function setSensors(access: RegisterAccess, s: { P_chamber: number; T_test: number; P_jacket: number; F0: number }) {
+async function setSensors(
+  access: RegisterAccess,
+  s: { P_chamber: number; T_test: number; P_jacket: number; F0: number },
+) {
   await access.setAnalog('P_CHAMBER_INT', s.P_chamber);
   await access.setAnalog('T_TESTEMUNHO', s.T_test);
   await access.setAnalog('P_CHAMBER_EXT', s.P_jacket);
@@ -69,7 +76,7 @@ describe('VirtualPLC', () => {
     plc.start();
     await setSensors(access, { P_chamber: 1.0, T_test: 22, P_jacket: 3.5, F0: 0 });
     await plc.tick(301);
-    await setSensors(access, { P_chamber: 0.10, T_test: 22, P_jacket: 3.5, F0: 0 });
+    await setSensors(access, { P_chamber: 0.1, T_test: 22, P_jacket: 3.5, F0: 0 });
     await plc.tick(330);
     expect(await access.getDiscrete('V_STEAM_IN_INT')).toBe(true);
     expect(await access.getDiscrete('V_VAC')).toBe(false);

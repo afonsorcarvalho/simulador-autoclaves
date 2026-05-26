@@ -182,14 +182,14 @@ describe('chamber_step — jacket condensation releases latent heat', () => {
 
   it('hot vapor entering cold jacket heats the wall via condensation latent heat', () => {
     const s: ChamberState = {
-      m_air: 0.03,           // ~1 atm air at 22°C
+      m_air: 0.03, // ~1 atm air at 22°C
       m_vap: 0,
       m_liq: 0,
       T: C_to_K(22),
       T_wall: C_to_K(22),
     };
     const f: ChamberFluxes = {
-      inflow: { air: 0, vap: 0.004, liq: 0 },  // 4 g/s hot vapor (typical from generator)
+      inflow: { air: 0, vap: 0.004, liq: 0 }, // 4 g/s hot vapor (typical from generator)
       inflow_T: C_to_K(148),
       outflow: zeroFlow(),
       Q_external: 0,

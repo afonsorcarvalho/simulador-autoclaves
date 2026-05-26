@@ -18,8 +18,16 @@ interface ValveSetpoints {
 }
 
 const ALL_VALVES: (keyof ValveSetpoints)[] = [
-  'V_STEAM_IN_INT', 'V_STEAM_IN_JACKET', 'V_AIR_IN', 'V_VAC', 'V_EXHAUST',
-  'V_DRAIN_INT', 'V_DRAIN_JACKET', 'V_GEN_WATER_IN', 'PUMP_VAC', 'HEATER_GEN',
+  'V_STEAM_IN_INT',
+  'V_STEAM_IN_JACKET',
+  'V_AIR_IN',
+  'V_VAC',
+  'V_EXHAUST',
+  'V_DRAIN_INT',
+  'V_DRAIN_JACKET',
+  'V_GEN_WATER_IN',
+  'PUMP_VAC',
+  'HEATER_GEN',
 ];
 
 export class VirtualPLC {
@@ -31,9 +39,15 @@ export class VirtualPLC {
     this.access = new RegisterAccess(bridge);
   }
 
-  start(): void { this.sm.start(); }
-  getPhase(): CyclePhase { return this.sm.phase; }
-  forcePhase(phase: CyclePhase, at_time_s: number): void { this.sm.forcePhase(phase, at_time_s); }
+  start(): void {
+    this.sm.start();
+  }
+  getPhase(): CyclePhase {
+    return this.sm.phase;
+  }
+  forcePhase(phase: CyclePhase, at_time_s: number): void {
+    this.sm.forcePhase(phase, at_time_s);
+  }
 
   async tick(time_s: number): Promise<void> {
     const sensors = await this.readSensors();

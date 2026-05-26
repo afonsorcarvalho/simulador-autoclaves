@@ -62,23 +62,23 @@ apps/web/
 
 ### File responsibilities
 
-| File | One-line responsibility |
-|---|---|
-| `bridge.ts` | Defines `ModbusBridge` interface (DI/coils/holdings + async I/O) |
-| `virtual-esp32.ts` | In-memory implementation with 4 arrays per space |
-| `register-access.ts` | Typed getter/setter using `@sim/protocol` register map + scaling |
-| `factory.ts` | Returns virtual or real bridge based on `HW_MODE` env |
-| `orchestrator.ts` | Owns physics state + bridge handle; coordinates a single tick |
-| `sensor-publisher.ts` | Maps `SystemState` → holding registers (P, T) + coils (PS, LS, LVL) |
-| `command-reader.ts` | Maps Discrete Inputs → `ValveCommands` + `ActuatorCommands` |
-| `snapshot.ts` | Aggregates orchestrator state for WS broadcast (used in sub-projeto 4) |
-| `plc.ts` | Virtual PLC: ticks state machine + controllers + writes valve commands |
-| `state-machine.ts` | Phase transitions: IDLE → PREHEAT → PREVAC → HOLD → EXHAUST → DRY → DONE |
-| `chamber-pid.ts` | PI controller modulating V_STEAM_IN_INT to hold chamber at setpoint |
-| `cycle-config.ts` | zod schema for cycle YAML (setpoints, durations, prevac pulses) |
-| `runner.ts` | Drives orchestrator + virtual PLC for duration, returns final state |
-| `assertions.ts` | Pure functions: `assertF0Reached`, `assertTempProfile`, etc |
-| `cli.ts` | Loads YAML, runs scenario, prints summary + exits with status code |
+| File                  | One-line responsibility                                                  |
+| --------------------- | ------------------------------------------------------------------------ |
+| `bridge.ts`           | Defines `ModbusBridge` interface (DI/coils/holdings + async I/O)         |
+| `virtual-esp32.ts`    | In-memory implementation with 4 arrays per space                         |
+| `register-access.ts`  | Typed getter/setter using `@sim/protocol` register map + scaling         |
+| `factory.ts`          | Returns virtual or real bridge based on `HW_MODE` env                    |
+| `orchestrator.ts`     | Owns physics state + bridge handle; coordinates a single tick            |
+| `sensor-publisher.ts` | Maps `SystemState` → holding registers (P, T) + coils (PS, LS, LVL)      |
+| `command-reader.ts`   | Maps Discrete Inputs → `ValveCommands` + `ActuatorCommands`              |
+| `snapshot.ts`         | Aggregates orchestrator state for WS broadcast (used in sub-projeto 4)   |
+| `plc.ts`              | Virtual PLC: ticks state machine + controllers + writes valve commands   |
+| `state-machine.ts`    | Phase transitions: IDLE → PREHEAT → PREVAC → HOLD → EXHAUST → DRY → DONE |
+| `chamber-pid.ts`      | PI controller modulating V_STEAM_IN_INT to hold chamber at setpoint      |
+| `cycle-config.ts`     | zod schema for cycle YAML (setpoints, durations, prevac pulses)          |
+| `runner.ts`           | Drives orchestrator + virtual PLC for duration, returns final state      |
+| `assertions.ts`       | Pure functions: `assertF0Reached`, `assertTempProfile`, etc              |
+| `cli.ts`              | Loads YAML, runs scenario, prints summary + exits with status code       |
 
 ---
 
@@ -134,11 +134,16 @@ export class Orchestrator {
 // snapshot.ts
 export interface Snapshot {
   t_s: number;
-  P_chamber_bar: number; P_jacket_bar: number; P_gen_bar: number;
-  T_chamber_C: number;  T_test_C: number;  T_jacket_C: number;  T_gen_C: number;
+  P_chamber_bar: number;
+  P_jacket_bar: number;
+  P_gen_bar: number;
+  T_chamber_C: number;
+  T_test_C: number;
+  T_jacket_C: number;
+  T_gen_C: number;
   F0_min: number;
-  valves: Record<string, boolean>;   // commanded states
-  cycle_phase?: string;              // populated when running with virtual PLC
+  valves: Record<string, boolean>; // commanded states
+  cycle_phase?: string; // populated when running with virtual PLC
 }
 
 // virtual-plc/cycle-config.ts
@@ -181,6 +186,7 @@ export class VirtualPLC {
 ## Task 1: Scaffold apps/web Next.js workspace
 
 **Files:**
+
 - Create: `apps/web/package.json`
 - Create: `apps/web/tsconfig.json`
 - Create: `apps/web/vitest.config.ts`
@@ -295,7 +301,7 @@ export default function Home() {
 
 - [ ] **Step 1.6: Write `apps/web/README.md`**
 
-```markdown
+````markdown
 # @sim/web
 
 Next.js app: orchestrator runtime + dashboard.
@@ -305,6 +311,7 @@ Next.js app: orchestrator runtime + dashboard.
 ```bash
 pnpm --filter @sim/web scenario:run server/scenarios/ster-134-prevac.yaml
 ```
+````
 
 ## Run tests
 
@@ -317,14 +324,17 @@ pnpm --filter @sim/web test
 ```bash
 pnpm --filter @sim/web dev
 ```
+
 ```
 
 - [ ] **Step 1.7: Install + verify**
 
 ```
+
 pnpm install
 pnpm --filter @sim/web typecheck
-```
+
+````
 
 Expected: lockfile updated, typecheck clean (only `app/page.tsx` exists, trivial).
 
@@ -333,13 +343,14 @@ Expected: lockfile updated, typecheck clean (only `app/page.tsx` exists, trivial
 ```bash
 git add apps/web/package.json apps/web/tsconfig.json apps/web/vitest.config.ts apps/web/next.config.mjs apps/web/app/page.tsx apps/web/README.md pnpm-lock.yaml
 git commit -m "feat(web): scaffold @sim/web Next.js workspace"
-```
+````
 
 ---
 
 ## Task 2: Bridge interface + scaffold
 
 **Files:**
+
 - Create: `apps/web/server/bridge/bridge.ts`
 
 - [ ] **Step 2.1: Write `apps/web/server/bridge/bridge.ts`**
@@ -385,6 +396,7 @@ git commit -m "feat(web): ModbusBridge interface"
 ## Task 3: Virtual ESP32 bridge (in-memory) — TDD
 
 **Files:**
+
 - Create: `apps/web/test/bridge/virtual-esp32.test.ts`
 - Create: `apps/web/server/bridge/virtual-esp32.ts`
 
@@ -532,7 +544,7 @@ export class VirtualEsp32Bridge implements ModbusBridge {
   async readHoldingRegisters(addr: number, count: number): Promise<number[]> {
     this.requireConnected();
     // Combined range 0x3000-0x4FFF; offset relative to 0x3000.
-    if (addr < 0x3000 || addr + count - 1 > 0x4FFF) {
+    if (addr < 0x3000 || addr + count - 1 > 0x4fff) {
       throw new Error(`address 0x${addr.toString(16)} out of range for holding/diagnostics`);
     }
     const off = addr - 0x3000;
@@ -541,7 +553,7 @@ export class VirtualEsp32Bridge implements ModbusBridge {
 
   async writeHoldingRegisters(addr: number, values: number[]): Promise<void> {
     this.requireConnected();
-    if (addr < 0x3000 || addr + values.length - 1 > 0x4FFF) {
+    if (addr < 0x3000 || addr + values.length - 1 > 0x4fff) {
       throw new Error(`address 0x${addr.toString(16)} out of range for holding/diagnostics`);
     }
     const off = addr - 0x3000;
@@ -570,6 +582,7 @@ git commit -m "feat(web): virtual ESP32 bridge (in-memory Modbus space)"
 ## Task 4: RegisterAccess typed wrapper — TDD
 
 **Files:**
+
 - Create: `apps/web/test/bridge/register-access.test.ts`
 - Create: `apps/web/server/bridge/register-access.ts`
 
@@ -602,9 +615,9 @@ describe('RegisterAccess', () => {
   });
 
   it('scaled analog round-trip: P_CHAMBER_INT (scale=1000, bar abs)', async () => {
-    await access.setAnalog('P_CHAMBER_INT', 3.04);  // 134°C sat pressure
+    await access.setAnalog('P_CHAMBER_INT', 3.04); // 134°C sat pressure
     const raw = await bridge.readHoldingRegisters(0x3000, 1);
-    expect(raw[0]).toBe(3040);  // 3.04 * 1000
+    expect(raw[0]).toBe(3040); // 3.04 * 1000
     expect(await access.getAnalog('P_CHAMBER_INT')).toBeCloseTo(3.04, 3);
   });
 
@@ -616,7 +629,7 @@ describe('RegisterAccess', () => {
   });
 
   it('clips analog values to int16 range', async () => {
-    await access.setAnalog('P_CHAMBER_INT', 1000);  // way out of range
+    await access.setAnalog('P_CHAMBER_INT', 1000); // way out of range
     const raw = await bridge.readHoldingRegisters(0x3000, 1);
     expect(raw[0]).toBeLessThanOrEqual(32767);
     expect(raw[0]).toBeGreaterThanOrEqual(-32768);
@@ -656,14 +669,16 @@ export class RegisterAccess {
 
   async getDiscrete(id: RegisterId): Promise<boolean> {
     const r = this.reg(id);
-    if (r.space !== 'discrete_inputs') throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
+    if (r.space !== 'discrete_inputs')
+      throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
     const [v] = await this.bridge.readDiscreteInputs(r.address, 1);
     return v ?? false;
   }
 
   async setDiscrete(id: RegisterId, value: boolean): Promise<void> {
     const r = this.reg(id);
-    if (r.space !== 'discrete_inputs') throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
+    if (r.space !== 'discrete_inputs')
+      throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
     await this.bridge.writeDiscreteInputs(r.address, [value]);
   }
 
@@ -716,6 +731,7 @@ git commit -m "feat(web): RegisterAccess typed wrapper (RegisterId → scaled ph
 ## Task 5: Command reader (DI → physics commands) — TDD
 
 **Files:**
+
 - Create: `apps/web/test/orchestrator/command-reader.test.ts`
 - Create: `apps/web/server/orchestrator/command-reader.ts`
 
@@ -812,6 +828,7 @@ git commit -m "feat(web): command reader (Discrete Inputs → ValveCommands + Ac
 ## Task 6: Sensor publisher (physics state → holdings/coils) — TDD
 
 **Files:**
+
 - Create: `apps/web/test/orchestrator/sensor-publisher.test.ts`
 - Create: `apps/web/server/orchestrator/sensor-publisher.ts`
 
@@ -844,8 +861,12 @@ function makeParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
@@ -881,7 +902,7 @@ describe('publishSensors', () => {
     await publishSensors(bridge, state, params);
 
     const f0_raw = await access.getAnalog('F0_X10');
-    expect(f0_raw).toBe(1000);  // 100 min × 10
+    expect(f0_raw).toBe(1000); // 100 min × 10
   });
 
   it('publishes pressure switch coils based on threshold logic', async () => {
@@ -951,9 +972,8 @@ export async function publishSensors(
   // Pressures
   const pc = chamber_pressure(state.chamber, params.chamber);
   const pj = chamber_pressure(state.jacket, params.jacket);
-  const pg = state.generator && params.generator
-    ? generator_pressure(state.generator, params.generator)
-    : 0;
+  const pg =
+    state.generator && params.generator ? generator_pressure(state.generator, params.generator) : 0;
   await access.setAnalog('P_CHAMBER_INT', Pa_to_bar(pc.p_total));
   await access.setAnalog('P_CHAMBER_EXT', Pa_to_bar(pj.p_total));
   await access.setAnalog('P_GENERATOR', Pa_to_bar(pg));
@@ -970,8 +990,8 @@ export async function publishSensors(
   // Pressure switches (Coils)
   const steamLineOk = Pa_to_bar(params.external.steam_line_pressure) >= PS_STEAM_THRESHOLD_BAR;
   await access.setCoil('PS_STEAM_LINE', steamLineOk);
-  await access.setCoil('PS_AIR_LINE', false);  // no compressed air supply modeled yet
-  await access.setCoil('PS_SEAL_CLEAN', true);   // assume seals always pressurized
+  await access.setCoil('PS_AIR_LINE', false); // no compressed air supply modeled yet
+  await access.setCoil('PS_SEAL_CLEAN', true); // assume seals always pressurized
   await access.setCoil('PS_SEAL_STERILE', true);
 
   // Door limit switches: always healthy (closed) for now
@@ -1008,6 +1028,7 @@ git commit -m "feat(web): sensor publisher (physics state → holdings + coils)"
 ## Task 7: Orchestrator core (tick loop) — TDD
 
 **Files:**
+
 - Create: `apps/web/test/orchestrator/orchestrator.test.ts`
 - Create: `apps/web/server/orchestrator/orchestrator.ts`
 
@@ -1028,14 +1049,26 @@ function basicParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: 454000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -1078,7 +1111,7 @@ describe('Orchestrator', () => {
     await access.setDiscrete('V_VAC', true);
     await access.setDiscrete('PUMP_VAC', true);
 
-    for (let i = 0; i < 600; i++) await orch.tick();  // 30 s sim
+    for (let i = 0; i < 600; i++) await orch.tick(); // 30 s sim
     const s = orch.getState();
     // Chamber air mass should drop significantly under vacuum
     expect(s.chamber.m_air).toBeLessThan(initial.chamber.m_air * 0.5);
@@ -1094,7 +1127,7 @@ describe('Orchestrator', () => {
 
     await orch.tick();
     const P_chamber = await access.getAnalog('P_CHAMBER_INT');
-    expect(P_chamber).toBeCloseTo(1.013, 1);  // 1 atm
+    expect(P_chamber).toBeCloseTo(1.013, 1); // 1 atm
   });
 });
 ```
@@ -1155,6 +1188,7 @@ git commit -m "feat(web): orchestrator tick loop (read commands → step physics
 ## Task 8: Virtual PLC state machine — TDD
 
 **Files:**
+
 - Create: `apps/web/test/virtual-plc/state-machine.test.ts`
 - Create: `apps/web/server/virtual-plc/state-machine.ts`
 
@@ -1217,7 +1251,7 @@ describe('CycleStateMachine', () => {
     sm.update(301, sensors);
     expect(sm.phase).toBe('PREVAC_VACUUM');
 
-    sm.update(330, { ...sensors, P_chamber_bar: 0.10 });
+    sm.update(330, { ...sensors, P_chamber_bar: 0.1 });
     expect(sm.phase).toBe('PREVAC_STEAM');
   });
 
@@ -1228,7 +1262,7 @@ describe('CycleStateMachine', () => {
     for (let pulse = 0; pulse < 3; pulse++) {
       sm.update(t, { P_chamber_bar: 1.0, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
       expect(sm.phase).toBe('PREVAC_VACUUM');
-      sm.update(t + 30, { P_chamber_bar: 0.10, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+      sm.update(t + 30, { P_chamber_bar: 0.1, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
       expect(sm.phase).toBe('PREVAC_STEAM');
       sm.update(t + 60, { P_chamber_bar: 2.0, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
       t += 60;
@@ -1278,7 +1312,7 @@ describe('CycleStateMachine', () => {
     sm.start();
     sm.update(301, { P_chamber_bar: 1.0, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
     expect(sm.prevacPulseIndex).toBe(0);
-    sm.update(330, { P_chamber_bar: 0.10, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+    sm.update(330, { P_chamber_bar: 0.1, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
     sm.update(360, { P_chamber_bar: 2.0, T_test_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
     expect(sm.prevacPulseIndex).toBe(1);
   });
@@ -1425,6 +1459,7 @@ git commit -m "feat(web): cycle state machine (IDLE → PREHEAT → ... → COMP
 ## Task 9: Virtual PLC valve commander — TDD
 
 **Files:**
+
 - Create: `apps/web/test/virtual-plc/plc.test.ts`
 - Create: `apps/web/server/virtual-plc/plc.ts`
 
@@ -1455,7 +1490,11 @@ function makeCycle(): CycleConfig {
   };
 }
 
-async function setup(): Promise<{ bridge: VirtualEsp32Bridge; access: RegisterAccess; plc: VirtualPLC }> {
+async function setup(): Promise<{
+  bridge: VirtualEsp32Bridge;
+  access: RegisterAccess;
+  plc: VirtualPLC;
+}> {
   const bridge = new VirtualEsp32Bridge();
   await bridge.connect();
   const access = new RegisterAccess(bridge);
@@ -1463,7 +1502,10 @@ async function setup(): Promise<{ bridge: VirtualEsp32Bridge; access: RegisterAc
   return { bridge, access, plc };
 }
 
-async function setSensors(access: RegisterAccess, s: { P_chamber: number; T_test: number; P_jacket: number; F0: number }) {
+async function setSensors(
+  access: RegisterAccess,
+  s: { P_chamber: number; T_test: number; P_jacket: number; F0: number },
+) {
   await access.setAnalog('P_CHAMBER_INT', s.P_chamber);
   await access.setAnalog('T_TESTEMUNHO', s.T_test);
   await access.setAnalog('P_CHAMBER_EXT', s.P_jacket);
@@ -1505,7 +1547,7 @@ describe('VirtualPLC', () => {
     plc.start();
     await setSensors(access, { P_chamber: 1.0, T_test: 22, P_jacket: 3.5, F0: 0 });
     await plc.tick(301);
-    await setSensors(access, { P_chamber: 0.10, T_test: 22, P_jacket: 3.5, F0: 0 });
+    await setSensors(access, { P_chamber: 0.1, T_test: 22, P_jacket: 3.5, F0: 0 });
     await plc.tick(330);
     expect(await access.getDiscrete('V_STEAM_IN_INT')).toBe(true);
     expect(await access.getDiscrete('V_VAC')).toBe(false);
@@ -1561,8 +1603,16 @@ interface ValveSetpoints {
 }
 
 const ALL_VALVES: (keyof ValveSetpoints)[] = [
-  'V_STEAM_IN_INT', 'V_STEAM_IN_JACKET', 'V_AIR_IN', 'V_VAC', 'V_EXHAUST',
-  'V_DRAIN_INT', 'V_DRAIN_JACKET', 'V_GEN_WATER_IN', 'PUMP_VAC', 'HEATER_GEN',
+  'V_STEAM_IN_INT',
+  'V_STEAM_IN_JACKET',
+  'V_AIR_IN',
+  'V_VAC',
+  'V_EXHAUST',
+  'V_DRAIN_INT',
+  'V_DRAIN_JACKET',
+  'V_GEN_WATER_IN',
+  'PUMP_VAC',
+  'HEATER_GEN',
 ];
 
 export class VirtualPLC {
@@ -1574,9 +1624,15 @@ export class VirtualPLC {
     this.access = new RegisterAccess(bridge);
   }
 
-  start(): void { this.sm.start(); }
-  getPhase(): CyclePhase { return this.sm.phase; }
-  forcePhase(phase: CyclePhase, at_time_s: number): void { this.sm.forcePhase(phase, at_time_s); }
+  start(): void {
+    this.sm.start();
+  }
+  getPhase(): CyclePhase {
+    return this.sm.phase;
+  }
+  forcePhase(phase: CyclePhase, at_time_s: number): void {
+    this.sm.forcePhase(phase, at_time_s);
+  }
 
   async tick(time_s: number): Promise<void> {
     const sensors = await this.readSensors();
@@ -1638,6 +1694,7 @@ git commit -m "feat(web): VirtualPLC valve commander (writes valve setpoints via
 ## Task 10: Scenario runner — TDD
 
 **Files:**
+
 - Create: `apps/web/test/scenario-runner/runner.test.ts`
 - Create: `apps/web/server/scenario-runner/runner.ts`
 
@@ -1658,20 +1715,41 @@ function basicParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: 454000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_STEAM_IN_JACKET: {
-        from: 'generator', to: 'jacket',
+        from: 'generator',
+        to: 'jacket',
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
-        thermostat: { target: 'jacket', close_at_Pa: bar_to_Pa(3.54), reopen_at_Pa: bar_to_Pa(3.34) },
+        thermostat: {
+          target: 'jacket',
+          close_at_Pa: bar_to_Pa(3.54),
+          reopen_at_Pa: bar_to_Pa(3.34),
+        },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
     jacket_chamber_h_W_per_K: 150,
   };
 }
@@ -1680,7 +1758,13 @@ function preheatedState(p: SystemParams): SystemState {
   const T_amb = C_to_K(22);
   const T_hot = C_to_K(138);
   return {
-    chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb), m_vap: 0, m_liq: 0, T: T_amb, T_wall: T_hot },
+    chamber: {
+      m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb),
+      m_vap: 0,
+      m_liq: 0,
+      T: T_amb,
+      T_wall: T_hot,
+    },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
     load: { T_metal: T_amb, T_fabric: T_amb },
@@ -1746,7 +1830,7 @@ describe('runScenario', () => {
       initialState: initial,
       bridge: new VirtualEsp32Bridge(),
       tickDt_s: 0.05,
-      max_duration_s: 1,  // 1 s — way too short
+      max_duration_s: 1, // 1 s — way too short
     });
 
     expect(result.completed).toBe(false);
@@ -1859,6 +1943,7 @@ git commit -m "feat(web): scenario runner (orchestrator + virtual PLC for full c
 ## Task 11: Integration — 134°C cycle green
 
 **Files:**
+
 - Create: `apps/web/test/scenario-runner/integration-ster-134.test.ts`
 - Create: `apps/web/server/scenarios/ster-134-prevac.yaml`
 
@@ -1869,11 +1954,11 @@ git commit -m "feat(web): scenario runner (orchestrator + virtual PLC for full c
 name: ster-134-prevac
 sterilization_T_C: 134
 sterilization_P_bar: 3.04
-hold_duration_s: 420       # 7 min
+hold_duration_s: 420 # 7 min
 prevac_pulses: 3
 prevac_vacuum_target_bar: 0.20
 prevac_steam_target_bar: 2.0
-preheat_duration_s: 60     # short — start preheated
+preheat_duration_s: 60 # short — start preheated
 dry_duration_s: 300
 f0_target_min: 100
 ```
@@ -1894,25 +1979,63 @@ import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@s
 
 function makeParams(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200, relief_pressure_Pa: bar_to_Pa(3.04) },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+      relief_pressure_Pa: bar_to_Pa(3.04),
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_STEAM_IN_JACKET: {
-        from: 'generator', to: 'jacket',
+        from: 'generator',
+        to: 'jacket',
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
-        thermostat: { target: 'jacket', close_at_Pa: bar_to_Pa(3.54), reopen_at_Pa: bar_to_Pa(3.34) },
+        thermostat: {
+          target: 'jacket',
+          close_at_Pa: bar_to_Pa(3.54),
+          reopen_at_Pa: bar_to_Pa(3.34),
+        },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
     jacket_chamber_h_W_per_K: 150,
   };
 }
@@ -1921,7 +2044,13 @@ function preheatedInitial(p: SystemParams): SystemState {
   const T_amb = C_to_K(22);
   const T_hot = C_to_K(138);
   return {
-    chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb), m_vap: 0, m_liq: 0, T: T_amb, T_wall: T_hot },
+    chamber: {
+      m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb),
+      m_vap: 0,
+      m_liq: 0,
+      T: T_amb,
+      T_wall: T_hot,
+    },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
     load: { T_metal: T_amb, T_fabric: T_amb },
@@ -1960,6 +2089,7 @@ describe('Integration: 134°C pre-vacuum cycle via virtual PLC', () => {
 - [ ] **Step 11.3: Run → likely fails first (timing / PID tuning)**
 
 If F0 doesn't reach 100, tune in this order:
+
 - preheat_duration too short → starts prevac before generator hot. Raise.
 - prevac_pulses not removing enough air → chamber doesn't reach 134°C. Reduce prevac_vacuum_target_bar.
 - hold_duration too short → F0 plateau before target. Raise.
@@ -1987,6 +2117,7 @@ git commit -m "test(web): 134°C cycle integration (closed-loop virtual PLC reac
 ## Task 12: CLI runner + finalize
 
 **Files:**
+
 - Create: `apps/web/server/scenario-runner/cli.ts`
 - Modify: `TODO.md`
 
@@ -2005,22 +2136,63 @@ import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@s
 
 function defaultParams(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200, relief_pressure_Pa: bar_to_Pa(3.04) },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+      relief_pressure_Pa: bar_to_Pa(3.04),
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
-    load: { m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500, h_gas_metal: 200, h_metal_fabric: 100 },
+    load: {
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
+    },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_STEAM_IN_JACKET: {
-        from: 'generator', to: 'jacket',
+        from: 'generator',
+        to: 'jacket',
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
-        thermostat: { target: 'jacket', close_at_Pa: bar_to_Pa(3.54), reopen_at_Pa: bar_to_Pa(3.34) },
+        thermostat: {
+          target: 'jacket',
+          close_at_Pa: bar_to_Pa(3.54),
+          reopen_at_Pa: bar_to_Pa(3.34),
+        },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
     jacket_chamber_h_W_per_K: 150,
   };
 }
@@ -2029,7 +2201,13 @@ function preheatedInitial(p: SystemParams): SystemState {
   const T_amb = C_to_K(22);
   const T_hot = C_to_K(138);
   return {
-    chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb), m_vap: 0, m_liq: 0, T: T_amb, T_wall: T_hot },
+    chamber: {
+      m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb),
+      m_vap: 0,
+      m_liq: 0,
+      T: T_amb,
+      T_wall: T_hot,
+    },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
     load: { T_metal: T_amb, T_fabric: T_amb },
@@ -2047,14 +2225,18 @@ export async function main(scenarioPath: string): Promise<number> {
   console.log(`[scenario] Running ${cycle.name} (max ${3600}s sim time)...`);
   const start = Date.now();
   const result = await runScenario({
-    cycle, params, initialState: initial,
+    cycle,
+    params,
+    initialState: initial,
     bridge: new VirtualEsp32Bridge(),
     tickDt_s: 0.05,
     max_duration_s: 3600,
   });
   const wall = ((Date.now() - start) / 1000).toFixed(1);
 
-  console.log(`[scenario] ${result.completed ? 'COMPLETED' : 'TIMED OUT'} in ${result.elapsed_s.toFixed(1)}s sim (${wall}s wall)`);
+  console.log(
+    `[scenario] ${result.completed ? 'COMPLETED' : 'TIMED OUT'} in ${result.elapsed_s.toFixed(1)}s sim (${wall}s wall)`,
+  );
   console.log(`[scenario] Final phase: ${result.final_phase}`);
   console.log(`[scenario] Final F0: ${result.f0_min.toFixed(2)} min`);
   console.log('[scenario] Phase history:');
@@ -2066,8 +2248,11 @@ export async function main(scenarioPath: string): Promise<number> {
 }
 
 const isMain = (() => {
-  try { return fileURLToPath(import.meta.url) === (process.argv[1] ? resolve(process.argv[1]) : ''); }
-  catch { return false; }
+  try {
+    return fileURLToPath(import.meta.url) === (process.argv[1] ? resolve(process.argv[1]) : '');
+  } catch {
+    return false;
+  }
 })();
 
 if (isMain) {

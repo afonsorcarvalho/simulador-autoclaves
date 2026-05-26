@@ -20,9 +20,8 @@ export async function publishSensors(
   // Pressures
   const pc = chamber_pressure(state.chamber, params.chamber);
   const pj = chamber_pressure(state.jacket, params.jacket);
-  const pg = state.generator && params.generator
-    ? generator_pressure(state.generator, params.generator)
-    : 0;
+  const pg =
+    state.generator && params.generator ? generator_pressure(state.generator, params.generator) : 0;
   await access.setAnalog('P_CHAMBER_INT', Pa_to_bar(pc.p_total));
   await access.setAnalog('P_CHAMBER_EXT', Pa_to_bar(pj.p_total));
   await access.setAnalog('P_GENERATOR', Pa_to_bar(pg));
@@ -39,8 +38,8 @@ export async function publishSensors(
   // Pressure switches (Coils)
   const steamLineOk = Pa_to_bar(params.external.steam_line_pressure) >= PS_STEAM_THRESHOLD_BAR;
   await access.setCoil('PS_STEAM_LINE', steamLineOk);
-  await access.setCoil('PS_AIR_LINE', false);  // no compressed air supply modeled yet
-  await access.setCoil('PS_SEAL_CLEAN', true);   // assume seals always pressurized
+  await access.setCoil('PS_AIR_LINE', false); // no compressed air supply modeled yet
+  await access.setCoil('PS_SEAL_CLEAN', true); // assume seals always pressurized
   await access.setCoil('PS_SEAL_STERILE', true);
 
   // Door limit switches: always healthy (closed) for now

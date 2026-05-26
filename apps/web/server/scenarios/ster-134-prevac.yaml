@@ -1,0 +1,12 @@
+# Headline cycle: 134°C pre-vacuum sterilization, 3 vacuum pulses + 7 min hold.
+# Target: F0 >= 100 minutes by end of cycle.
+name: ster-134-prevac
+sterilization_T_C: 134
+sterilization_P_bar: 3.04
+hold_duration_s: 420 # 7 min
+prevac_pulses: 3
+prevac_vacuum_target_bar: 0.20
+prevac_steam_target_bar: 2.0
+preheat_duration_s: 60 # short — start preheated
+dry_duration_s: 300
+f0_target_min: 100

@@ -15,14 +15,16 @@ export class RegisterAccess {
 
   async getDiscrete(id: RegisterId): Promise<boolean> {
     const r = this.reg(id);
-    if (r.space !== 'discrete_inputs') throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
+    if (r.space !== 'discrete_inputs')
+      throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
     const [v] = await this.bridge.readDiscreteInputs(r.address, 1);
     return v ?? false;
   }
 
   async setDiscrete(id: RegisterId, value: boolean): Promise<void> {
     const r = this.reg(id);
-    if (r.space !== 'discrete_inputs') throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
+    if (r.space !== 'discrete_inputs')
+      throw new Error(`space mismatch: ${id} is ${r.space}, not discrete_inputs`);
     await this.bridge.writeDiscreteInputs(r.address, [value]);
   }
 
@@ -54,7 +56,8 @@ export class RegisterAccess {
     if (r.space !== 'holding_registers' && r.space !== 'diagnostics') {
       throw new Error(`space mismatch: ${id} is ${r.space}, not holding/diagnostics`);
     }
-    const raw = 'scale' in r && r.scale !== undefined ? Math.round(value * r.scale) : Math.round(value);
+    const raw =
+      'scale' in r && r.scale !== undefined ? Math.round(value * r.scale) : Math.round(value);
     const clipped = Math.max(INT16_MIN, Math.min(INT16_MAX, raw));
     await this.bridge.writeHoldingRegisters(r.address, [clipped]);
   }

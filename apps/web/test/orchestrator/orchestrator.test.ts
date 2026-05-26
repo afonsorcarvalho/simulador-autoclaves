@@ -11,14 +11,26 @@ function basicParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: 454000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
   };
 }
 
@@ -61,7 +73,7 @@ describe('Orchestrator', () => {
     await access.setDiscrete('V_VAC', true);
     await access.setDiscrete('PUMP_VAC', true);
 
-    for (let i = 0; i < 600; i++) await orch.tick();  // 30 s sim
+    for (let i = 0; i < 600; i++) await orch.tick(); // 30 s sim
     const s = orch.getState();
     // Chamber air mass should drop significantly under vacuum
     expect(s.chamber.m_air).toBeLessThan(initial.chamber.m_air * 0.5);
@@ -77,6 +89,6 @@ describe('Orchestrator', () => {
 
     await orch.tick();
     const P_chamber = await access.getAnalog('P_CHAMBER_INT');
-    expect(P_chamber).toBeCloseTo(1.013, 1);  // 1 atm
+    expect(P_chamber).toBeCloseTo(1.013, 1); // 1 atm
   });
 });

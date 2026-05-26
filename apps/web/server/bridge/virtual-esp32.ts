@@ -52,7 +52,9 @@ export class VirtualEsp32Bridge implements ModbusBridge {
   async writeDiscreteInputs(addr: number, values: boolean[]): Promise<void> {
     this.requireConnected();
     const off = this.offsetIn('discrete_inputs', addr, values.length);
-    values.forEach((v, i) => { this.discreteInputs[off + i] = v ? 1 : 0; });
+    values.forEach((v, i) => {
+      this.discreteInputs[off + i] = v ? 1 : 0;
+    });
   }
 
   async readCoils(addr: number, count: number): Promise<boolean[]> {
@@ -64,7 +66,9 @@ export class VirtualEsp32Bridge implements ModbusBridge {
   async writeCoils(addr: number, values: boolean[]): Promise<void> {
     this.requireConnected();
     const off = this.offsetIn('coils', addr, values.length);
-    values.forEach((v, i) => { this.coils[off + i] = v ? 1 : 0; });
+    values.forEach((v, i) => {
+      this.coils[off + i] = v ? 1 : 0;
+    });
   }
 
   async readHoldingRegisters(addr: number, count: number): Promise<number[]> {
@@ -83,6 +87,8 @@ export class VirtualEsp32Bridge implements ModbusBridge {
       throw new Error(`address 0x${addr.toString(16)} out of range for holding/diagnostics`);
     }
     const off = addr - 0x3000;
-    values.forEach((v, i) => { this.holding[off + i] = v; });
+    values.forEach((v, i) => {
+      this.holding[off + i] = v;
+    });
   }
 }

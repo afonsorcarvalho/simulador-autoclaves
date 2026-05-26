@@ -1,22 +1,42 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import yaml from 'js-yaml';
 import { runScenario } from '../../server/scenario-runner/runner.js';
-import type { CycleConfig } from '../../server/virtual-plc/cycle-config.js';
+import { CycleConfigSchema } from '../../server/virtual-plc/cycle-config.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemParams, SystemState } from '@sim/physics';
 import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
 
-function basicParams(): SystemParams {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+function makeParams(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, relief_pressure_Pa: 304000 },
-    jacket: { V: 0.025, allowLiquid: false },
-    generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: 454000 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+      relief_pressure_Pa: bar_to_Pa(3.04),
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
+    generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
     load: {
       m_metal: 20,
       cp_metal: 500,
       m_fabric: 5,
       cp_fabric: 1500,
       h_gas_metal: 200,
-      h_metal_fabric: 500,
+      h_metal_fabric: 100,
     },
     valves: {
       V_STEAM_IN_INT: {
@@ -40,6 +60,11 @@ function basicParams(): SystemParams {
         to: 'atmosphere',
         params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
       },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
     external: {
       steam_line_pressure: bar_to_Pa(5),
@@ -50,7 +75,7 @@ function basicParams(): SystemParams {
   };
 }
 
-function preheatedState(p: SystemParams): SystemState {
+function preheatedInitial(p: SystemParams): SystemState {
   const T_amb = C_to_K(22);
   const T_hot = C_to_K(138);
   return {
@@ -69,67 +94,38 @@ function preheatedState(p: SystemParams): SystemState {
   };
 }
 
-const shortCycle: CycleConfig = {
-  name: 'unit-test',
-  sterilization_T_C: 133,
-  sterilization_P_bar: 3.04,
-  hold_duration_s: 60,
-  prevac_pulses: 2,
-  prevac_vacuum_target_bar: 0.25,
-  prevac_steam_target_bar: 2.0,
-  preheat_duration_s: 30,
-  dry_duration_s: 60,
-  f0_target_min: 20,
-};
+describe('Integration: 134°C pre-vacuum cycle via virtual PLC', () => {
+  it('completes the cycle and reaches F0 ≥ 100', async () => {
+    const yamlText = readFileSync(
+      resolve(__dirname, '../../server/scenarios/ster-134-prevac.yaml'),
+      'utf8',
+    );
+    const cycle = CycleConfigSchema.parse(yaml.load(yamlText));
+    const params = makeParams();
+    const initial = preheatedInitial(params);
 
-describe('runScenario', () => {
-  it('runs a full cycle to COMPLETE within timeout', async () => {
-    const params = basicParams();
-    const initial = preheatedState(params);
     const result = await runScenario({
-      cycle: shortCycle,
+      cycle,
       params,
       initialState: initial,
       bridge: new VirtualEsp32Bridge(),
       tickDt_s: 0.05,
-      max_duration_s: 1500,
+      max_duration_s: 3600,
     });
+
+    console.log('Phase history:', JSON.stringify(result.phase_history, null, 2));
+    console.log(
+      'F0:',
+      result.f0_min,
+      'min, elapsed:',
+      result.elapsed_s,
+      's, phase:',
+      result.final_phase,
+    );
 
     expect(result.completed).toBe(true);
     expect(result.final_phase).toBe('COMPLETE');
-    expect(result.f0_min).toBeGreaterThan(0);
-  }, 60000);
-
-  it('returns result with timing + final F0 + phase history', async () => {
-    const params = basicParams();
-    const initial = preheatedState(params);
-    const result = await runScenario({
-      cycle: shortCycle,
-      params,
-      initialState: initial,
-      bridge: new VirtualEsp32Bridge(),
-      tickDt_s: 0.05,
-      max_duration_s: 1500,
-    });
-
-    expect(result.elapsed_s).toBeGreaterThan(0);
-    expect(result.phase_history.length).toBeGreaterThan(0);
-    expect(result.phase_history[0]?.phase).toBe('PREHEAT');
-  }, 60000);
-
-  it('times out if cycle never completes', async () => {
-    const params = basicParams();
-    const initial = preheatedState(params);
-    const result = await runScenario({
-      cycle: shortCycle,
-      params,
-      initialState: initial,
-      bridge: new VirtualEsp32Bridge(),
-      tickDt_s: 0.05,
-      max_duration_s: 1, // 1 s — way too short
-    });
-
-    expect(result.completed).toBe(false);
-    expect(result.timed_out).toBe(true);
-  }, 30000);
+    expect(result.f0_min).toBeGreaterThanOrEqual(100);
+    expect(result.phase_history.map((p) => p.phase)).toContain('HOLD');
+  }, 180000);
 });

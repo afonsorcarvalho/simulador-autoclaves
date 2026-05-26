@@ -79,7 +79,9 @@ export class CycleStateMachine {
         return;
 
       case 'EXHAUST':
-        if (s.P_chamber_bar < 1.0) this.transition('DRY', time_s);
+        // P_ATM ≈ 1.013 bar; exhausting to atmosphere can only reach ~1.013 bar.
+        // Transition to DRY once chamber has depressurised to near-atmospheric (≤ 1.05 bar).
+        if (s.P_chamber_bar <= 1.05) this.transition('DRY', time_s);
         return;
 
       case 'DRY':

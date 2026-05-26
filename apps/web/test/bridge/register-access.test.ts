@@ -23,9 +23,9 @@ describe('RegisterAccess', () => {
   });
 
   it('scaled analog round-trip: P_CHAMBER_INT (scale=1000, bar abs)', async () => {
-    await access.setAnalog('P_CHAMBER_INT', 3.04);  // 134°C sat pressure
+    await access.setAnalog('P_CHAMBER_INT', 3.04); // 134°C sat pressure
     const raw = await bridge.readHoldingRegisters(0x3000, 1);
-    expect(raw[0]).toBe(3040);  // 3.04 * 1000
+    expect(raw[0]).toBe(3040); // 3.04 * 1000
     expect(await access.getAnalog('P_CHAMBER_INT')).toBeCloseTo(3.04, 3);
   });
 
@@ -37,7 +37,7 @@ describe('RegisterAccess', () => {
   });
 
   it('clips analog values to int16 range', async () => {
-    await access.setAnalog('P_CHAMBER_INT', 1000);  // way out of range
+    await access.setAnalog('P_CHAMBER_INT', 1000); // way out of range
     const raw = await bridge.readHoldingRegisters(0x3000, 1);
     expect(raw[0]).toBeLessThanOrEqual(32767);
     expect(raw[0]).toBeGreaterThanOrEqual(-32768);

@@ -23,8 +23,12 @@ function makeParams(): SystemParams {
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
     load: {
-      m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500,
-      h_gas_metal: 200, h_metal_fabric: 100,
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
     },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
@@ -60,7 +64,7 @@ describe('publishSensors', () => {
     await publishSensors(bridge, state, params);
 
     const f0_raw = await access.getAnalog('F0_X10');
-    expect(f0_raw).toBe(1000);  // 100 min × 10
+    expect(f0_raw).toBe(1000); // 100 min × 10
   });
 
   it('publishes pressure switch coils based on threshold logic', async () => {
