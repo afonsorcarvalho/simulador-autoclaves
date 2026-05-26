@@ -38,6 +38,9 @@ export interface SystemParams {
   load: LoadParams;
   valves: Record<string, ValveTopology>;
   external: ExternalConditions;
+  /** Wall conduction coupling between jacket and chamber (W/K).
+   *  Default 0 (no coupling — back-compat). Typical 100-300 W/K for real autoclaves. */
+  jacket_chamber_h_W_per_K?: number;
 }
 
 export interface SystemState {
@@ -184,21 +187,26 @@ export function system_step(
   const loadResult = load_step(state.load, params.load, state.chamber.T, dt);
   const Q_load = loadResult.Q_from_gas; // positive = removed from gas, goes to load
 
-  // Chamber step (gas absorbs/gives heat to load)
+  // Jacket↔chamber wall conduction coupling
+  const h_jc = params.jacket_chamber_h_W_per_K ?? 0;
+  const Q_jacket_to_chamber = h_jc > 0 ? h_jc * (state.jacket.T - state.chamber.T) : 0;
+  // Positive: heat flows from jacket to chamber (jacket hotter)
+
+  // Chamber step (gas absorbs/gives heat to load; gains from jacket via wall)
   const chamberFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
     outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load, // negative: chamber loses heat to load
+    Q_external: -Q_load + Q_jacket_to_chamber, // gains from jacket, loses to load
   };
   const nextChamber = chamber_step(state.chamber, params.chamber, chamberFluxes, dt);
 
-  // Jacket step (no load coupling)
+  // Jacket step (loses heat to chamber via wall)
   const jacketFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.jacket),
     inflow_T: inflowT(acc.jacket, state.jacket.T),
     outflow: speciesOut(acc.jacket),
-    Q_external: 0,
+    Q_external: -Q_jacket_to_chamber, // loses to chamber
   };
   const nextJacket = chamber_step(state.jacket, params.jacket, jacketFluxes, dt);
 

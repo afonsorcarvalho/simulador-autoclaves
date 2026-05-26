@@ -130,3 +130,69 @@ describe('system_step', () => {
     expect(cur.chamber.m_air).toBeGreaterThan(s.chamber.m_air);
   });
 });
+
+describe('system_step — jacket-chamber wall coupling', () => {
+  it('cold chamber ends warmer with coupling than without coupling', () => {
+    // Run two identical scenarios: one with coupling, one without.
+    // Chamber gas is cold (40°C), jacket is hot (140°C).
+    // No gas↔metal exchange (h_gas_metal = 0) so the load does not mask the coupling effect.
+    const makeScenario = (h_jc: number) => {
+      const s = basicState();
+      s.jacket.T = C_to_K(140);
+      s.chamber.T = C_to_K(40);
+      s.load = { T_metal: C_to_K(40), T_fabric: C_to_K(40) };
+      const p = basicParams();
+      // Isolate the coupling signal: disable gas↔metal exchange so jacket→chamber effect is clear
+      p.load = { ...p.load, h_gas_metal: 0, h_metal_fabric: 0 };
+      p.jacket_chamber_h_W_per_K = h_jc;
+      let cur = s;
+      for (let i = 0; i < 600; i++) {
+        // 6 s simulated
+        cur = system_step(cur, p, {}, { heater_gen: false, pump_vac: false }, 0.01);
+      }
+      return cur.chamber.T;
+    };
+    const T_with = makeScenario(200);
+    const T_without = makeScenario(0);
+    // With jacket coupling enabled, chamber should be noticeably warmer
+    expect(T_with).toBeGreaterThan(T_without + 1);
+  });
+
+  it('back-compat: disabling coupling (h=0) produces cooler chamber than h=200', () => {
+    // Mirror of the previous test: zero coupling means jacket heat does NOT reach chamber.
+    // No gas↔metal exchange so the coupling signal is not masked.
+    const makeScenario = (h_jc: number) => {
+      const s = basicState();
+      s.jacket.T = C_to_K(140);
+      s.chamber.T = C_to_K(40);
+      s.load = { T_metal: C_to_K(40), T_fabric: C_to_K(40) };
+      const p = basicParams();
+      p.load = { ...p.load, h_gas_metal: 0, h_metal_fabric: 0 };
+      p.jacket_chamber_h_W_per_K = h_jc;
+      let cur = s;
+      for (let i = 0; i < 600; i++) {
+        cur = system_step(cur, p, {}, { heater_gen: false, pump_vac: false }, 0.01);
+      }
+      return cur.chamber.T;
+    };
+    const T_coupled = makeScenario(200);
+    const T_decoupled = makeScenario(0);
+    expect(T_coupled).toBeGreaterThan(T_decoupled);
+  });
+
+  it('coupling drives jacket and chamber toward thermal equilibrium', () => {
+    const s = basicState();
+    const p = basicParams();
+    p.jacket_chamber_h_W_per_K = 500;
+    s.jacket.T = C_to_K(140);
+    s.chamber.T = C_to_K(20);
+    s.load = { T_metal: C_to_K(20), T_fabric: C_to_K(20) };
+    let cur = s;
+    for (let i = 0; i < 30000; i++) {
+      // 5 min simulated
+      cur = system_step(cur, p, {}, { heater_gen: false, pump_vac: false }, 0.01);
+    }
+    // After enough time, T_chamber should be close to T_jacket (within 30°C as approximation)
+    expect(Math.abs(cur.jacket.T - cur.chamber.T)).toBeLessThan(30);
+  });
+});

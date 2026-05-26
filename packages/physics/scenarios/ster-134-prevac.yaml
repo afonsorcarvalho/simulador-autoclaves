@@ -19,6 +19,9 @@ equipment:
   # Omit to use these defaults.
   chamber_wall_mass_kg: 50
   jacket_wall_mass_kg: 15
+  # Jacket-to-chamber heat conduction through shared wall (W/K).
+  # 150 W/K is typical for a 150 L stainless autoclave (~5 m² shared wall area).
+  jacket_chamber_h_W_per_K: 150
   load:
     metal_kg: 20
     fabric_kg: 5

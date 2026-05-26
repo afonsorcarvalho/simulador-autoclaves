@@ -39,6 +39,9 @@ interface Scenario {
     chamber_wall_mass_kg?: number;
     /** Wall thermal mass of the jacket (kg stainless). Default: 15 kg. */
     jacket_wall_mass_kg?: number;
+    /** Jacket-to-chamber wall conduction (W/K). Default: 150 (typical 150 L autoclave with
+     *  ~5 m² shared wall area, mostly stainless). Set 0 to decouple. */
+    jacket_chamber_h_W_per_K?: number;
     load: { metal_kg: number; fabric_kg: number };
   };
   steps: Array<{ t: number; valves: string[]; actuators: string[] }>;
@@ -109,6 +112,7 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       steam_line_T: C_to_K(160),
       atmosphere_T: C_to_K(22),
     },
+    jacket_chamber_h_W_per_K: eq.jacket_chamber_h_W_per_K ?? 150,
   };
 }
 
