@@ -3,13 +3,32 @@
   "compilerOptions": {
     "noEmit": true,
     "rootDir": ".",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "jsx": "preserve",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "moduleResolution": "Bundler",
     "incremental": true,
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": true
   },
-  "include": ["server/**/*", "test/**/*", "app/**/*", "next-env.d.ts"],
-  "exclude": ["node_modules", ".next"]
+  "include": [
+    "server/**/*",
+    "test/**/*",
+    "app/**/*",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
 }
