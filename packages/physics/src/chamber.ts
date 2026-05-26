@@ -187,8 +187,14 @@ export function chamber_step(
 
     const dm_cond = m_vap - m_vap_max;
     if (!p.allowLiquid) {
-      // Jacket: condensate drips out immediately
+      // Jacket case: condensate drips out (to drain), BUT releases latent heat to gas first.
+      // Real jacket: vapor condenses on wall, wall absorbs latent heat, then drain removes cold liquid.
       m_vap = m_vap_max;
+      if (dm_cond > 0) {
+        const Q_lat = dm_cond * h_vap_water(T);
+        const denom = m_air * CV_AIR + m_vap * CV_VAP;
+        if (denom > 0) T += Q_lat / denom;
+      }
       break;
     }
     m_vap -= dm_cond;

@@ -171,6 +171,38 @@ describe('chamber_step — relief valve', () => {
   });
 });
 
+describe('chamber_step — jacket condensation releases latent heat', () => {
+  const jacket_params: ChamberParams = {
+    V: 0.025,
+    allowLiquid: false,
+    wall_mass_kg: 15,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 100,
+  };
+
+  it('hot vapor entering cold jacket heats the wall via condensation latent heat', () => {
+    const s: ChamberState = {
+      m_air: 0.03,           // ~1 atm air at 22°C
+      m_vap: 0,
+      m_liq: 0,
+      T: C_to_K(22),
+      T_wall: C_to_K(22),
+    };
+    const f: ChamberFluxes = {
+      inflow: { air: 0, vap: 0.004, liq: 0 },  // 4 g/s hot vapor (typical from generator)
+      inflow_T: C_to_K(148),
+      outflow: zeroFlow(),
+      Q_external: 0,
+    };
+    let cur = s;
+    for (let i = 0; i < 90; i++) cur = chamber_step(cur, jacket_params, f, 1);  // 90 s
+    // Wall should have warmed significantly (condensation released latent heat)
+    expect(cur.T_wall).toBeDefined();
+    expect(cur.T_wall!).toBeGreaterThan(C_to_K(80));  // realistic: ~90-120°C after 90s
+    expect(cur.T).toBeGreaterThan(C_to_K(80));
+  });
+});
+
 describe('chamber_step — wall thermal mass', () => {
   const params150L_walled: ChamberParams = {
     V: 0.15,
