@@ -30,6 +30,9 @@ equipment:
   # Jacket-to-chamber heat conduction through shared wall (W/K).
   # 150 W/K is typical for a 150 L stainless autoclave (~5 m² shared wall area).
   jacket_chamber_h_W_per_K: 150
+  # Start with jacket + generator already at operating temperature.
+  # Isolates sterilization dynamics from cold-start ramp.
+  preheated: true
   load:
     metal_kg: 20
     fabric_kg: 5

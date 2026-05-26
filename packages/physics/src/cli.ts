@@ -45,6 +45,9 @@ interface Scenario {
     /** Jacket-to-chamber wall conduction (W/K). Default: 150 (typical 150 L autoclave with
      *  ~5 m² shared wall area, mostly stainless). Set 0 to decouple. */
     jacket_chamber_h_W_per_K?: number;
+    /** Pre-heat jacket + generator to operating temperature at t=0.
+     *  Skips the cold-start ramp; useful for isolating sterilization dynamics. */
+    preheated?: boolean;
     load: { metal_kg: number; fabric_kg: number };
   };
   steps: Array<{ t: number; valves: string[]; actuators: string[] }>;
@@ -129,25 +132,88 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
   };
 }
 
+/** Approximate saturation temperature for water at pressure P_Pa.
+ *  Uses Antoine equation (water, mmHg / °C) inverted analytically.
+ *  Valid range: ~1 kPa … 1 MPa (roughly 7 °C … 180 °C). */
+function T_sat_approx(P_Pa: number): number {
+  if (P_Pa < 100) return 273.15;
+  // Antoine constants for water (Stull 1947, range 60–150 °C).
+  const A = 8.07131;
+  const B = 1730.63;
+  const C = 233.426;
+  const P_mmHg = P_Pa / 133.322;
+  const log_P = Math.log10(P_mmHg);
+  // T_C = B / (A - log_P) - C
+  return B / (A - log_P) - C + 273.15;
+}
+
 function makeInitialState(p: SystemParams, eq: Scenario['equipment']): SystemState {
-  const T = C_to_K(22);
+  const T_ambient = C_to_K(22);
+
+  // Chamber always starts cold (it's what gets sterilised).
+  const chamberInit = {
+    m_air: (P_ATM * p.chamber.V) / (R_AIR * T_ambient),
+    m_vap: 0,
+    m_liq: 0,
+    T: T_ambient,
+    T_wall: T_ambient,
+  };
+
+  let jacketInit: SystemState['jacket'];
+  let generatorInit: SystemState['generator'];
+
+  if (eq.preheated) {
+    // Jacket pre-heated: walls and gas both at setpoint temperature, but filled with
+    // hot air at atmospheric pressure (no steam yet — steam enters once the thermostat
+    // detects below-setpoint pressure and opens V_STEAM_IN_JACKET).
+    // This avoids numerical instability from starting with pure saturated steam at
+    // zero air content (which causes a condensation T-spike in the first integration
+    // step when the hot jacket loses heat to the cold chamber).
+    // Physics: in ~2–4 s the generator (already at full pressure) fills the jacket
+    // to setpoint, displacing air. From ~t=5 s onwards the jacket behaves identically
+    // to a fully pre-heated scenario.
+    const jacket_setpoint_Pa = bar_to_Pa(eq.jacket_setpoint_bar ?? 3.54);
+    const T_jacket_init = T_sat_approx(jacket_setpoint_Pa);
+    // Hot air filling the jacket at atmospheric pressure at T_jacket_setpoint
+    const m_air_jacket = (P_ATM * p.jacket.V) / (R_AIR * T_jacket_init);
+    jacketInit = {
+      m_air: m_air_jacket,
+      m_vap: 0,
+      m_liq: 0,
+      T: T_jacket_init,
+      T_wall: T_jacket_init,
+    };
+
+    // Generator pre-heated to sat-T at relief setpoint (~148 °C), vapor ready to deliver.
+    const gen_setpoint_Pa = (eq.generator_relief_bar ?? 4) * 1e5;
+    const T_gen_init = T_sat_approx(gen_setpoint_Pa);
+    const V_gas_gen = Math.max(0.05 - eq.generator_water_l / 1000, 1e-6);
+    const m_vap_gen = (gen_setpoint_Pa * V_gas_gen) / (R_VAP * T_gen_init);
+    generatorInit = {
+      m_water_liq: eq.generator_water_l,
+      m_water_vap: m_vap_gen,
+      T: T_gen_init,
+    };
+  } else {
+    jacketInit = {
+      m_air: (P_ATM * p.jacket.V) / (R_AIR * T_ambient),
+      m_vap: 0,
+      m_liq: 0,
+      T: T_ambient,
+      T_wall: T_ambient,
+    };
+    generatorInit = {
+      m_water_liq: eq.generator_water_l,
+      m_water_vap: 0,
+      T: T_ambient,
+    };
+  }
+
   return {
-    chamber: {
-      m_air: (P_ATM * p.chamber.V) / (R_AIR * T),
-      m_vap: 0,
-      m_liq: 0,
-      T,
-      T_wall: T, // wall starts at ambient temperature
-    },
-    jacket: {
-      m_air: (P_ATM * p.jacket.V) / (R_AIR * T),
-      m_vap: 0,
-      m_liq: 0,
-      T,
-      T_wall: T, // wall starts at ambient temperature
-    },
-    generator: { m_water_liq: eq.generator_water_l, m_water_vap: 0, T: C_to_K(22) },
-    load: { T_metal: T, T_fabric: T },
+    chamber: chamberInit,
+    jacket: jacketInit,
+    generator: generatorInit,
+    load: { T_metal: T_ambient, T_fabric: T_ambient },
     f0_minutes: 0,
     time_s: 0,
   };
