@@ -4,8 +4,11 @@ duration_max_s: 1800
 equipment:
   chamber_volume_l: 150
   jacket_volume_l: 25
-  generator_water_l: 30
-  heater_kw: 24
+  # Real 150 L autoclave: ~10 L water reservoir + ~36 kW heater.
+  # Less water = faster startup (heat-up to 100°C: ~91 s @ 36 kW).
+  # Jacket reaches 3.54 bar setpoint in ~2-3 min as in real units.
+  generator_water_l: 10
+  heater_kw: 36
   # Pressure hierarchy for 134 °C sterilization (real autoclave operating regime):
   #   P_chamber  = 3.04 bar abs (134 °C sat) — sterilization setpoint
   #   P_jacket   = 3.54 bar abs (138 °C)     — chamber + 0.5 bar, no temperature loss
@@ -14,8 +17,10 @@ equipment:
   generator_relief_bar: 4.54
   # Jacket pressure controller (bang-bang on V_STEAM_IN_JACKET):
   #   Close when P_jacket > 3.54 bar abs (0.5 bar above 134°C setpoint).
-  #   Reopen when P_jacket < 3.49 bar (50 mbar deadband prevents chatter).
+  #   Reopen when P_jacket < 3.34 bar (200 mbar deadband suppresses chatter
+  #   during vacuum pulses + latent-heat surge cycles).
   jacket_setpoint_bar: 3.54
+  jacket_deadband_bar: 0.2
   chamber_relief_bar: 3.04
   # Wall thermal mass: 50 kg stainless for chamber, 15 kg for jacket.
   # These buffer T during vacuum pulses (25 kJ/K vs ~130 J/K gas-only).

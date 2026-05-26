@@ -99,7 +99,9 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       V_STEAM_IN_JACKET: {
         from: 'generator',
         to: 'jacket',
-        params: { Cv: 5e-6, gamma: GAMMA_VAP, R: R_VAP },
+        // Smaller Cv (1e-6 vs 5e-6) spreads vapor admission over more dt steps,
+        // suppressing the per-step latent-heat spike during bang-bang re-open events.
+        params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
         thermostat: {
           target: 'jacket',
           close_at_Pa: jacket_setpoint_Pa,
