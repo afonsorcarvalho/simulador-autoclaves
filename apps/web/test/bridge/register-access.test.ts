@@ -48,6 +48,17 @@ describe('RegisterAccess', () => {
     expect(await access.getAnalog('WATCHDOG_MS')).toBe(250);
   });
 
+  it('uint16 registers handle values above 32767 without sign wrap', async () => {
+    await access.setAnalog('F0_X10', 5000); // F0=500 min, value 5000 (fits int16, sanity)
+    expect(await access.getAnalog('F0_X10')).toBe(5000);
+
+    await access.setAnalog('F0_X10', 50000); // F0=5000 min, value 50000 (exceeds int16)
+    expect(await access.getAnalog('F0_X10')).toBe(50000);
+
+    await access.setAnalog('F0_X10', -10); // negative not allowed for uint16
+    expect(await access.getAnalog('F0_X10')).toBe(0); // clipped to 0
+  });
+
   it('throws when accessing a register with wrong type', async () => {
     // P_CHAMBER_INT is a holding register, not a coil
     await expect(access.getCoil('P_CHAMBER_INT' as never)).rejects.toThrow(/space mismatch/i);

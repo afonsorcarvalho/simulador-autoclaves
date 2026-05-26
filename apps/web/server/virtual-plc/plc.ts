@@ -12,6 +12,8 @@ interface ValveSetpoints {
   V_EXHAUST?: boolean;
   V_DRAIN_INT?: boolean;
   V_DRAIN_JACKET?: boolean;
+  V_SEAL_CLEAN?: boolean;
+  V_SEAL_STERILE?: boolean;
   V_GEN_WATER_IN?: boolean;
   PUMP_VAC?: boolean;
   HEATER_GEN?: boolean;
@@ -25,6 +27,8 @@ const ALL_VALVES: (keyof ValveSetpoints)[] = [
   'V_EXHAUST',
   'V_DRAIN_INT',
   'V_DRAIN_JACKET',
+  'V_SEAL_CLEAN',
+  'V_SEAL_STERILE',
   'V_GEN_WATER_IN',
   'PUMP_VAC',
   'HEATER_GEN',
@@ -33,6 +37,7 @@ const ALL_VALVES: (keyof ValveSetpoints)[] = [
 export class VirtualPLC {
   private readonly sm: CycleStateMachine;
   private readonly access: RegisterAccess;
+  private lastTickTime_s = 0;
 
   constructor(cycle: CycleConfig, bridge: ModbusBridge) {
     this.sm = new CycleStateMachine(cycle);
@@ -48,8 +53,12 @@ export class VirtualPLC {
   forcePhase(phase: CyclePhase, at_time_s: number): void {
     this.sm.forcePhase(phase, at_time_s);
   }
+  getPhaseElapsed_s(): number {
+    return this.lastTickTime_s - this.sm.phaseStartedAt;
+  }
 
   async tick(time_s: number): Promise<void> {
+    this.lastTickTime_s = time_s;
     const sensors = await this.readSensors();
     this.sm.update(time_s, sensors);
     const setpoints = this.commandsFor(this.sm.phase);

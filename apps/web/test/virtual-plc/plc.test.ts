@@ -104,4 +104,12 @@ describe('VirtualPLC', () => {
     expect(await access.getDiscrete('V_VAC')).toBe(false);
     expect(await access.getDiscrete('PUMP_VAC')).toBe(false);
   });
+
+  it('reports phase elapsed time based on last tick', async () => {
+    const { access, plc } = await setup();
+    plc.start();
+    await setSensors(access, { P_chamber: 1.0, T_test: 22, P_jacket: 1.0, F0: 0 });
+    await plc.tick(45);
+    expect(plc.getPhaseElapsed_s()).toBeCloseTo(45, 1);
+  });
 });

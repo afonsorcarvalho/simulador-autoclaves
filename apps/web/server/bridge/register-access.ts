@@ -3,6 +3,8 @@ import { REGISTERS, type RegisterId } from '@sim/protocol/registers';
 
 const INT16_MIN = -32768;
 const INT16_MAX = 32767;
+const UINT16_MIN = 0;
+const UINT16_MAX = 65535;
 
 export class RegisterAccess {
   constructor(private readonly bridge: ModbusBridge) {}
@@ -48,7 +50,10 @@ export class RegisterAccess {
     }
     const [raw] = await this.bridge.readHoldingRegisters(r.address, 1);
     if (raw === undefined) return 0;
-    return 'scale' in r && r.scale !== undefined ? raw / r.scale : raw;
+    const isUnsigned = 'type' in r && r.type === 'uint16';
+    // Reinterpret int16 storage as uint16 if needed
+    const reinterpreted = isUnsigned && raw < 0 ? raw + 65536 : raw;
+    return 'scale' in r && r.scale !== undefined ? reinterpreted / r.scale : reinterpreted;
   }
 
   async setAnalog(id: RegisterId, value: number): Promise<void> {
@@ -58,7 +63,12 @@ export class RegisterAccess {
     }
     const raw =
       'scale' in r && r.scale !== undefined ? Math.round(value * r.scale) : Math.round(value);
-    const clipped = Math.max(INT16_MIN, Math.min(INT16_MAX, raw));
-    await this.bridge.writeHoldingRegisters(r.address, [clipped]);
+    const isUnsigned = 'type' in r && r.type === 'uint16';
+    const min = isUnsigned ? UINT16_MIN : INT16_MIN;
+    const max = isUnsigned ? UINT16_MAX : INT16_MAX;
+    const clipped = Math.max(min, Math.min(max, raw));
+    // Convert uint16 to int16 for storage (since underlying is Int16Array)
+    const stored = isUnsigned && clipped > INT16_MAX ? clipped - 65536 : clipped;
+    await this.bridge.writeHoldingRegisters(r.address, [stored]);
   }
 }

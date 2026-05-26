@@ -98,6 +98,15 @@ describe('CycleStateMachine', () => {
     expect(sm.phase).toBe('DRY');
   });
 
+  it('EXHAUST → DRY pins regression: triggers at atmospheric (1.013 bar)', () => {
+    const sm = new CycleStateMachine(makeCycle());
+    sm.start();
+    sm.forcePhase('EXHAUST', 1100);
+    // 1.013 bar = exactly atmospheric. Old buggy `< 1.0` would never trigger.
+    sm.update(1120, { P_chamber_bar: 1.013, T_test_C: 100, P_jacket_bar: 3.5, F0_min: 150 });
+    expect(sm.phase).toBe('DRY');
+  });
+
   it('DRY → COMPLETE after dry_duration_s', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
