@@ -187,13 +187,22 @@ export function chamber_step(
 
     const dm_cond = m_vap - m_vap_max;
     if (!p.allowLiquid) {
-      // Jacket case: condensate drips out (to drain), BUT releases latent heat to gas first.
-      // Real jacket: vapor condenses on wall, wall absorbs latent heat, then drain removes cold liquid.
+      // Jacket case: condensate drips out (to drain), but latent heat went into the WALL
+      // (real physics: vapor condenses on cooler wall surface, latent heat raises wall T,
+      // cold drained liquid leaves with negligible enthalpy). Depositing into wall avoids
+      // the T-spike that occurs when gas alone (~30 J/K) absorbs ~2400 kJ/kg of latent heat.
       m_vap = m_vap_max;
       if (dm_cond > 0) {
         const Q_lat = dm_cond * h_vap_water(T);
-        const denom = m_air * CV_AIR + m_vap * CV_VAP;
-        if (denom > 0) T += Q_lat / denom;
+        if (T_wall !== undefined && wall_C > 0) {
+          T_wall += Q_lat / wall_C;
+          if (T_wall > T_MAX_K) T_wall = T_MAX_K;
+        } else {
+          // Fallback (no wall model): floor-protected gas heating
+          const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP, MIN_HEAT_CAP_JK);
+          T += Q_lat / denom;
+          if (T > T_MAX_K) T = T_MAX_K;
+        }
       }
       break;
     }

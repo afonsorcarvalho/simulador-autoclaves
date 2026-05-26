@@ -150,35 +150,35 @@ function T_sat_approx(P_Pa: number): number {
 function makeInitialState(p: SystemParams, eq: Scenario['equipment']): SystemState {
   const T_ambient = C_to_K(22);
 
-  // Chamber always starts cold (it's what gets sterilised).
+  // Chamber gas always starts cold (machine just loaded with cold instruments).
+  // But T_wall_chamber depends on preheated flag: a freshly powered autoclave starts
+  // with cold walls (T_ambient), whereas a unit already running cycles will have
+  // hot chamber walls heated by the jacket from a previous run.
+  const T_wall_chamber_init = eq.preheated
+    ? T_sat_approx(bar_to_Pa(eq.jacket_setpoint_bar ?? 3.54))
+    : T_ambient;
   const chamberInit = {
     m_air: (P_ATM * p.chamber.V) / (R_AIR * T_ambient),
     m_vap: 0,
     m_liq: 0,
     T: T_ambient,
-    T_wall: T_ambient,
+    T_wall: T_wall_chamber_init,
   };
 
   let jacketInit: SystemState['jacket'];
   let generatorInit: SystemState['generator'];
 
   if (eq.preheated) {
-    // Jacket pre-heated: walls and gas both at setpoint temperature, but filled with
-    // hot air at atmospheric pressure (no steam yet — steam enters once the thermostat
-    // detects below-setpoint pressure and opens V_STEAM_IN_JACKET).
-    // This avoids numerical instability from starting with pure saturated steam at
-    // zero air content (which causes a condensation T-spike in the first integration
-    // step when the hot jacket loses heat to the cold chamber).
-    // Physics: in ~2–4 s the generator (already at full pressure) fills the jacket
-    // to setpoint, displacing air. From ~t=5 s onwards the jacket behaves identically
-    // to a fully pre-heated scenario.
+    // Jacket pre-heated: pure saturated steam at setpoint (no air — displaced during
+    // the real pre-heat phase by the steam purge). Walls at saturation temperature.
+    // Requires chamber.ts MIN_HEAT_CAP_JK floor in the jacket condensation path to
+    // prevent T-spikes when m_air ≈ 0.
     const jacket_setpoint_Pa = bar_to_Pa(eq.jacket_setpoint_bar ?? 3.54);
     const T_jacket_init = T_sat_approx(jacket_setpoint_Pa);
-    // Hot air filling the jacket at atmospheric pressure at T_jacket_setpoint
-    const m_air_jacket = (P_ATM * p.jacket.V) / (R_AIR * T_jacket_init);
+    const m_vap_jacket = (jacket_setpoint_Pa * p.jacket.V) / (R_VAP * T_jacket_init);
     jacketInit = {
-      m_air: m_air_jacket,
-      m_vap: 0,
+      m_air: 0,
+      m_vap: m_vap_jacket,
       m_liq: 0,
       T: T_jacket_init,
       T_wall: T_jacket_init,
