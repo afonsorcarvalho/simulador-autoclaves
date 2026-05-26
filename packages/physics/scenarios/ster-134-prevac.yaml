@@ -6,12 +6,14 @@ equipment:
   jacket_volume_l: 25
   generator_water_l: 30
   heater_kw: 24
-  # Generator safety valve setpoint: 5 bar absolute ≈ 151 °C saturation.
-  # Generator only needs to supply steam at > jacket setpoint (3.54 bar); 5 bar gives headroom.
-  generator_relief_bar: 5
-  # Jacket passive pressure regulator: 0.5 bar above 134 °C sterilisation setpoint.
-  # Saturation at 134 °C ≈ 3.04 bar → jacket held at 3.54 bar abs (≈ 138 °C).
+  # Pressure hierarchy for 134 °C sterilization (real autoclave operating regime):
+  #   P_chamber  = 3.04 bar abs (134 °C sat) — sterilization setpoint
+  #   P_jacket   = 3.54 bar abs (138 °C)     — chamber + 0.5 bar, no temperature loss
+  #   P_generator= 4.54 bar abs (~148 °C)    — chamber + 1.5 bar, drives flow into chamber
+  # Each setpoint enforced via passive relief (vents excess to atmosphere).
+  generator_relief_bar: 4.54
   jacket_relief_bar: 3.54
+  chamber_relief_bar: 3.04
   # Wall thermal mass: 50 kg stainless for chamber, 15 kg for jacket.
   # These buffer T during vacuum pulses (25 kJ/K vs ~130 J/K gas-only).
   # Omit to use these defaults.

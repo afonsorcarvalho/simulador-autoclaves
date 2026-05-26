@@ -32,6 +32,9 @@ interface Scenario {
     /** Passive pressure-relief setpoint for the jacket (bar absolute). Default: 3.54 bar
      *  (0.5 bar above 134 °C saturation at 3.04 bar). Set to 0 to disable. */
     jacket_relief_bar?: number;
+    /** Passive pressure-relief setpoint for the chamber (bar absolute). Default: undefined
+     *  (no relief — chamber rises to source pressure). Set to 3.04 to lock at 134 °C sat. */
+    chamber_relief_bar?: number;
     /** Wall thermal mass of the chamber (kg stainless). Default: 50 kg. */
     chamber_wall_mass_kg?: number;
     /** Wall thermal mass of the jacket (kg stainless). Default: 15 kg. */
@@ -49,6 +52,9 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       wall_mass_kg: eq.chamber_wall_mass_kg ?? 50, // typical 150 L stainless autoclave chamber
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
+      ...(eq.chamber_relief_bar !== undefined
+        ? { relief_pressure_Pa: bar_to_Pa(eq.chamber_relief_bar) }
+        : {}),
     },
     jacket: {
       V: eq.jacket_volume_l / 1000,
