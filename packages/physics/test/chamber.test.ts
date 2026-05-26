@@ -135,6 +135,42 @@ describe('chamber_step — evaporation', () => {
   });
 });
 
+describe('chamber_step — relief valve', () => {
+  const params150L_relief: ChamberParams = {
+    V: 0.025, // jacket-sized
+    allowLiquid: false,
+    relief_pressure_Pa: 354000, // 3.54 bar abs
+  };
+
+  it('vents excess vapor when pressure exceeds setpoint', () => {
+    // Start with vapor pressure way above setpoint
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.05, // way above what 3.54 bar can hold at this T/V
+      m_liq: 0,
+      T: C_to_K(140),
+    };
+    const next = chamber_step(s, params150L_relief, noFlux(s.T), 0.01);
+    const p_after = (next.m_vap * 461.5 * next.T) / params150L_relief.V;
+    expect(p_after).toBeLessThanOrEqual(354000 * 1.05); // within 5%
+  });
+
+  it('does NOT vent below setpoint', () => {
+    // Pressure already below setpoint — nothing should happen
+    const s: ChamberState = { m_air: 0, m_vap: 0.001, m_liq: 0, T: C_to_K(140) };
+    const next = chamber_step(s, params150L_relief, noFlux(s.T), 0.01);
+    expect(next.m_vap).toBeCloseTo(s.m_vap, 6);
+  });
+
+  it('back-compat: omitting relief_pressure_Pa keeps original behaviour', () => {
+    const s: ChamberState = { m_air: 0, m_vap: 0.05, m_liq: 0, T: C_to_K(140) };
+    const params_no_relief: ChamberParams = { V: 0.025, allowLiquid: false };
+    const next = chamber_step(s, params_no_relief, noFlux(s.T), 0.01);
+    // Without relief, vapor stays (clipped only by saturation, not by setpoint)
+    expect(next.m_vap).toBeGreaterThan(s.m_vap * 0.5);
+  });
+});
+
 describe('chamber_step — wall thermal mass', () => {
   const params150L_walled: ChamberParams = {
     V: 0.15,

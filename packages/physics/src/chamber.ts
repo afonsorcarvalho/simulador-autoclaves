@@ -18,6 +18,9 @@ export interface ChamberParams {
   wall_cp_J_per_kg_K?: number;
   /** Convective heat-transfer coefficient gas↔wall (W/K). Default: 200. */
   wall_h_W_per_K?: number;
+  /** Passive pressure-relief setpoint (Pa). When total pressure exceeds this, excess vapor
+   *  (or air if needed) is vented. Undefined = no relief (default, back-compat). */
+  relief_pressure_Pa?: number;
 }
 
 export interface ChamberPressureBreakdown {
@@ -197,6 +200,36 @@ export function chamber_step(
       T = T_MAX_K;
       break;
     } // guard against residual runaway
+  }
+
+  // 5. Pressure relief: vent excess vapor (or air) when P_total exceeds setpoint.
+  // Models a passive mechanical relief valve (e.g., on the jacket). No PID — pure set-and-vent.
+  if (p.relief_pressure_Pa !== undefined && p.relief_pressure_Pa > 0) {
+    const setpoint = p.relief_pressure_Pa;
+    const p_air_now = (m_air * R_AIR * T) / p.V;
+    // Vapor partial pressure is capped at saturation (same logic as chamber_pressure helper)
+    const p_sat_relief = (() => {
+      const t_C = T - 273.15;
+      const p_mmHg = Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C));
+      return p_mmHg * 133.322;
+    })();
+    const p_vap_now = Math.min((m_vap * R_VAP * T) / p.V, p_sat_relief);
+    const p_total = p_air_now + p_vap_now;
+    if (p_total > setpoint) {
+      // Vent vapor preferentially (accumulates fastest in steam-fed jacket).
+      // Target vapor partial pressure = setpoint - p_air, then back-compute m_vap target.
+      const p_vap_target = Math.max(0, setpoint - p_air_now);
+      const m_vap_target = (p_vap_target * p.V) / (R_VAP * T);
+      if (m_vap_target < m_vap) {
+        // Normal case: venting vapor alone brings P down to setpoint.
+        m_vap = m_vap_target;
+        // T unchanged — venting at constant T is approximately isenthalpic.
+      } else {
+        // Air alone exceeds setpoint — vent air too until p_air = setpoint.
+        m_air = Math.max((setpoint * p.V) / (R_AIR * T), 0);
+        m_vap = 0;
+      }
+    }
   }
 
   return T_wall !== undefined ? { m_air, m_vap, m_liq, T, T_wall } : { m_air, m_vap, m_liq, T };
