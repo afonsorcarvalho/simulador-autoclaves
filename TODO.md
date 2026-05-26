@@ -2,11 +2,9 @@
 
 ## Em curso
 
-(vazio — escolher próximo sub-projeto)
+- Sub-projeto 4 — Dashboard MVP (live + virtual-plc + equipment CRUD + WS)
 
 ## Pendente
-
-- Sub-projeto 4 — Dashboard MVP (live + virtual-plc + equipment CRUD + WS)
 - Sub-projeto 5 — Firmware ESP32 + Modbus slave (I/O + watchdog + fast model)
 - Sub-projeto 6 — Injeção de falhas (hooks orchestrator + UI faults + cenários)
 - Sub-projeto 7 — Placa condicionamento KiCad (schematic + PCB + BOM)
