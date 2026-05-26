@@ -29,9 +29,12 @@ interface Scenario {
     heater_kw: number;
     /** Relief pressure for the generator safety valve (bar absolute). Default: 4 bar. */
     generator_relief_bar?: number;
-    /** Passive pressure-relief setpoint for the jacket (bar absolute). Default: 3.54 bar
-     *  (0.5 bar above 134 °C saturation at 3.04 bar). Set to 0 to disable. */
-    jacket_relief_bar?: number;
+    /** Jacket pressure controller close-at setpoint (bar absolute). Default: 3.54 bar
+     *  (0.5 bar above 134 °C saturation). V_STEAM_IN_JACKET closes when P_jacket exceeds this. */
+    jacket_setpoint_bar?: number;
+    /** Jacket pressure controller deadband (bar). Default: 0.05 bar.
+     *  Valve reopens when P_jacket falls below (jacket_setpoint_bar - deadband). */
+    jacket_deadband_bar?: number;
     /** Passive pressure-relief setpoint for the chamber (bar absolute). Default: undefined
      *  (no relief — chamber rises to source pressure). Set to 3.04 to lock at 134 °C sat. */
     chamber_relief_bar?: number;
@@ -48,6 +51,9 @@ interface Scenario {
 }
 
 function makeParams(eq: Scenario['equipment']): SystemParams {
+  const jacket_setpoint_Pa = bar_to_Pa(eq.jacket_setpoint_bar ?? 3.54);
+  const jacket_deadband_Pa = bar_to_Pa(eq.jacket_deadband_bar ?? 0.05);
+
   return {
     chamber: {
       V: eq.chamber_volume_l / 1000,
@@ -65,7 +71,7 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       wall_mass_kg: eq.jacket_wall_mass_kg ?? 15, // smaller jacket
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 100,
-      relief_pressure_Pa: bar_to_Pa(eq.jacket_relief_bar ?? 3.54),
+      // NOTE: NO relief_pressure_Pa — jacket pressure controlled by V_STEAM_IN_JACKET thermostat.
     },
     generator: {
       V_total: 0.05,
@@ -94,6 +100,11 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
         from: 'generator',
         to: 'jacket',
         params: { Cv: 5e-6, gamma: GAMMA_VAP, R: R_VAP },
+        thermostat: {
+          target: 'jacket',
+          close_at_Pa: jacket_setpoint_Pa,
+          reopen_at_Pa: jacket_setpoint_Pa - jacket_deadband_Pa,
+        },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
       V_EXHAUST: {

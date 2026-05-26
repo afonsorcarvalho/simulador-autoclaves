@@ -12,7 +12,10 @@ equipment:
   #   P_generator= 4.54 bar abs (~148 °C)    — chamber + 1.5 bar, drives flow into chamber
   # Each setpoint enforced via passive relief (vents excess to atmosphere).
   generator_relief_bar: 4.54
-  jacket_relief_bar: 3.54
+  # Jacket pressure controller (bang-bang on V_STEAM_IN_JACKET):
+  #   Close when P_jacket > 3.54 bar abs (0.5 bar above 134°C setpoint).
+  #   Reopen when P_jacket < 3.49 bar (50 mbar deadband prevents chatter).
+  jacket_setpoint_bar: 3.54
   chamber_relief_bar: 3.04
   # Wall thermal mass: 50 kg stainless for chamber, 15 kg for jacket.
   # These buffer T during vacuum pulses (25 kJ/K vs ~130 J/K gas-only).

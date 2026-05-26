@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../src/integrator.js';
+import { chamber_pressure } from '../src/chamber.js';
 import {
   GAMMA_AIR,
   GAMMA_VAP,
@@ -194,5 +195,95 @@ describe('system_step — jacket-chamber wall coupling', () => {
     }
     // After enough time, T_chamber should be close to T_jacket (within 30°C as approximation)
     expect(Math.abs(cur.jacket.T - cur.chamber.T)).toBeLessThan(30);
+  });
+});
+
+describe('system_step — valve thermostat (bang-bang control)', () => {
+  it('valve auto-closes when target pressure exceeds setpoint', () => {
+    const s = basicState();
+    const p = basicParams();
+    // Wire V_STEAM_IN_JACKET with a thermostat at 3.54 bar
+    p.valves.V_STEAM_IN_JACKET = {
+      from: 'generator',
+      to: 'jacket',
+      params: { Cv: 5e-5, gamma: GAMMA_VAP, R: R_VAP },
+      thermostat: {
+        target: 'jacket',
+        close_at_Pa: bar_to_Pa(3.54),
+        reopen_at_Pa: bar_to_Pa(3.49),
+      },
+    };
+    // Pre-pressurize generator
+    s.generator!.T = C_to_K(150);
+    s.generator!.m_water_vap = 0.5;
+
+    let cur = s;
+    // Drive jacket above setpoint (commanded open continuously)
+    for (let i = 0; i < 12000; i++) {
+      // 2 min sim
+      cur = system_step(
+        cur,
+        p,
+        { V_STEAM_IN_JACKET: true },
+        { heater_gen: true, pump_vac: false },
+        0.01,
+      );
+    }
+    // Jacket pressure should converge to slightly above 3.54 bar (just at close threshold)
+    const P_jacket = chamber_pressure(cur.jacket, p.jacket).p_total;
+    expect(Pa_to_bar(P_jacket)).toBeLessThan(3.7);
+    expect(Pa_to_bar(P_jacket)).toBeGreaterThan(3.4);
+    expect(cur.valve_tripped?.V_STEAM_IN_JACKET).toBe(true);
+  });
+
+  it('hysteresis: once tripped, valve stays closed until target drops below reopen threshold', () => {
+    const s = basicState();
+    const p = basicParams();
+    p.valves.V_STEAM_IN_JACKET = {
+      from: 'generator',
+      to: 'jacket',
+      params: { Cv: 5e-5, gamma: GAMMA_VAP, R: R_VAP },
+      thermostat: {
+        target: 'jacket',
+        close_at_Pa: bar_to_Pa(3.54),
+        reopen_at_Pa: bar_to_Pa(3.49),
+      },
+    };
+    // Manually set jacket above close threshold and mark as tripped
+    s.jacket.m_vap = 0.05; // arbitrary mass to put jacket above 3.54 bar
+    s.jacket.T = C_to_K(150);
+    s.valve_tripped = { V_STEAM_IN_JACKET: true };
+
+    // Run a single step — should remain tripped
+    const cur = system_step(
+      s,
+      p,
+      { V_STEAM_IN_JACKET: true },
+      { heater_gen: false, pump_vac: false },
+      0.01,
+    );
+    expect(cur.valve_tripped?.V_STEAM_IN_JACKET).toBe(true);
+  });
+
+  it('back-compat: valves without thermostat behave as before', () => {
+    const s = basicState();
+    const p = basicParams();
+    // V_STEAM_IN_INT has no thermostat
+    s.generator!.T = C_to_K(150);
+    s.generator!.m_water_vap = 0.5;
+    let cur = s;
+    for (let i = 0; i < 100; i++) {
+      cur = system_step(
+        cur,
+        p,
+        { V_STEAM_IN_INT: true },
+        { heater_gen: false, pump_vac: false },
+        0.01,
+      );
+    }
+    // Without thermostat, vapor should keep entering chamber
+    expect(cur.chamber.m_vap).toBeGreaterThan(0);
+    expect(cur.valve_tripped).toBeDefined();
+    expect(cur.valve_tripped!.V_STEAM_IN_INT).toBeUndefined();
   });
 });

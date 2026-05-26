@@ -19,10 +19,23 @@ import { P_ATM, GAMMA_AIR, GAMMA_VAP } from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
+export interface ValveThermostat {
+  /** Which volume's pressure controls this valve's auto-close behavior. */
+  target: VCName;
+  /** Close (trip) the valve when target pressure rises above this (Pa absolute). */
+  close_at_Pa: number;
+  /** Re-open the valve when target pressure falls below this (Pa absolute). */
+  reopen_at_Pa: number;
+}
+
 export interface ValveTopology {
   from: VCName;
   to: VCName;
   params: ValveParams;
+  /** Optional bang-bang pressure controller. If set, valve is auto-closed even when
+   *  manually commanded open whenever target pressure exceeds close_at_Pa, and stays
+   *  closed until target pressure falls below reopen_at_Pa (hysteresis to prevent chatter). */
+  thermostat?: ValveThermostat;
 }
 
 export interface ExternalConditions {
@@ -50,6 +63,8 @@ export interface SystemState {
   load: LoadState;
   f0_minutes: number;
   time_s: number;
+  /** Per-valve thermostat tripped state. true = closed by thermostat (overrides manual command). */
+  valve_tripped?: Record<string, boolean>;
 }
 
 export interface ValveCommands {
@@ -122,8 +137,24 @@ export function system_step(
   };
   let generatorVaporOutflow = 0;
 
+  // Update thermostat state per valve (bang-bang with hysteresis)
+  const prevTripped = state.valve_tripped ?? {};
+  const valve_tripped: Record<string, boolean> = {};
+  for (const [vId, topo] of Object.entries(params.valves)) {
+    if (!topo.thermostat) continue;
+    const P_target = vcPressure(topo.thermostat.target, state, params).P;
+    const wasClosed = prevTripped[vId] ?? false;
+    // Hysteresis: once closed, stay closed until P drops below reopen threshold
+    if (wasClosed) {
+      valve_tripped[vId] = P_target > topo.thermostat.reopen_at_Pa;
+    } else {
+      valve_tripped[vId] = P_target > topo.thermostat.close_at_Pa;
+    }
+  }
+
   for (const [vId, topo] of Object.entries(params.valves)) {
     if (!valves[vId]) continue;
+    if (valve_tripped[vId]) continue; // thermostat override: keep closed
     // Vacuum line only flows when pump is on — clean skip
     if (topo.to === 'vacuum' && !actuators.pump_vac) continue;
 
@@ -234,5 +265,6 @@ export function system_step(
     load: loadResult.next,
     f0_minutes: f0.value_minutes,
     time_s: state.time_s + dt,
+    valve_tripped,
   };
 }
