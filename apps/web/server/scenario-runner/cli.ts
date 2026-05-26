@@ -1,12 +1,56 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
-import { runScenario } from './runner.js';
+import { runScenario, type TraceRow } from './runner.js';
 import { CycleConfigSchema } from '../virtual-plc/cycle-config.js';
 import { VirtualEsp32Bridge } from '../bridge/virtual-esp32.js';
 import type { SystemParams, SystemState } from '@sim/physics';
 import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+
+function tracesToCsv(rows: TraceRow[]): string {
+  if (rows.length === 0) return '';
+  const cols = [
+    't_s',
+    'P_chamber_bar',
+    'P_jacket_bar',
+    'P_gen_bar',
+    'T_chamber_C',
+    'T_test_C',
+    'T_jacket_C',
+    'T_gen_C',
+    'F0_min',
+    'm_air_chamber',
+    'm_vap_chamber',
+    'm_liq_chamber',
+    'phase',
+  ] as const;
+  const fmt = (n: number): string => {
+    if (Number.isInteger(n)) return n.toString();
+    return n.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  };
+  const lines = [cols.join(',')];
+  for (const r of rows) {
+    lines.push(
+      [
+        fmt(r.t_s),
+        fmt(r.P_chamber_bar),
+        fmt(r.P_jacket_bar),
+        fmt(r.P_gen_bar),
+        fmt(r.T_chamber_C),
+        fmt(r.T_test_C),
+        fmt(r.T_jacket_C),
+        fmt(r.T_gen_C),
+        fmt(r.F0_min),
+        fmt(r.m_air_chamber),
+        fmt(r.m_vap_chamber),
+        fmt(r.m_liq_chamber),
+        r.phase,
+      ].join(','),
+    );
+  }
+  return lines.join('\n');
+}
 
 function defaultParams(): SystemParams {
   return {
@@ -90,13 +134,20 @@ function preheatedInitial(p: SystemParams): SystemState {
   };
 }
 
-export async function main(scenarioPath: string): Promise<number> {
-  const yamlText = readFileSync(scenarioPath, 'utf8');
+export interface CliOpts {
+  scenarioPath: string;
+  outCsv?: string;
+  sample_period_s?: number;
+}
+
+export async function main(opts: CliOpts): Promise<number> {
+  const yamlText = readFileSync(opts.scenarioPath, 'utf8');
   const cycle = CycleConfigSchema.parse(yaml.load(yamlText));
   const params = defaultParams();
   const initial = preheatedInitial(params);
 
-  console.log(`[scenario] Running ${cycle.name} (max ${3600}s sim time)...`);
+  const wantTrace = opts.outCsv !== undefined;
+  console.log(`[scenario] Running ${cycle.name} (max 3600s sim time)...`);
   const start = Date.now();
   const result = await runScenario({
     cycle,
@@ -105,6 +156,7 @@ export async function main(scenarioPath: string): Promise<number> {
     bridge: new VirtualEsp32Bridge(),
     tickDt_s: 0.05,
     max_duration_s: 3600,
+    ...(wantTrace ? { trace: { sample_period_s: opts.sample_period_s ?? 1 } } : {}),
   });
   const wall = ((Date.now() - start) / 1000).toFixed(1);
 
@@ -116,6 +168,13 @@ export async function main(scenarioPath: string): Promise<number> {
   console.log('[scenario] Phase history:');
   for (const p of result.phase_history) {
     console.log(`  t=${p.entered_at_s.toFixed(1).padStart(7)} s  → ${p.phase}`);
+  }
+
+  if (opts.outCsv && result.trace.length > 0) {
+    const csv = tracesToCsv(result.trace);
+    mkdirSync(dirname(opts.outCsv), { recursive: true });
+    writeFileSync(opts.outCsv, csv, 'utf8');
+    console.log(`[scenario] CSV trace (${result.trace.length} rows) → ${opts.outCsv}`);
   }
 
   return result.completed && result.f0_min >= cycle.f0_target_min ? 0 : 1;
@@ -130,10 +189,21 @@ const isMain = (() => {
 })();
 
 if (isMain) {
-  const arg = process.argv[2];
-  if (!arg) {
-    console.error('usage: tsx server/scenario-runner/cli.ts <scenario.yaml>');
+  // Args: <scenario.yaml> [--out trace.csv] [--sample-period <seconds>]
+  const args = process.argv.slice(2);
+  if (args.length === 0) {
+    console.error('usage: tsx server/scenario-runner/cli.ts <scenario.yaml> [--out trace.csv] [--sample-period 1.0]');
     process.exit(1);
   }
-  main(resolve(process.cwd(), arg)).then((code) => process.exit(code));
+  const scenarioPath = resolve(process.cwd(), args[0]!);
+  let outCsv: string | undefined;
+  let sample_period_s: number | undefined;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--out' && args[i + 1]) {
+      outCsv = resolve(process.cwd(), args[++i]!);
+    } else if (args[i] === '--sample-period' && args[i + 1]) {
+      sample_period_s = Number.parseFloat(args[++i]!);
+    }
+  }
+  main({ scenarioPath, ...(outCsv ? { outCsv } : {}), ...(sample_period_s !== undefined ? { sample_period_s } : {}) }).then((code) => process.exit(code));
 }
