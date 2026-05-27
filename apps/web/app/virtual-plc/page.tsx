@@ -13,8 +13,8 @@ export default function VirtualPlcPage() {
         <ConnectionIndicator connected={connected} />
       </div>
       <p className="text-slate-400 text-sm">
-        Manual valve overrides while no cycle is running. Useful for testing individual valves
-        and seeing physics response without the cycle state machine.
+        Manual valve overrides while no cycle is running. Useful for testing individual valves and
+        seeing physics response without the cycle state machine.
       </p>
       <ValvePanel snap={snapshot} disabled={snapshot?.cycle_running ?? false} />
     </div>

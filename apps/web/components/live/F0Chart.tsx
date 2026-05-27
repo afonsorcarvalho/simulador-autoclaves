@@ -31,7 +31,13 @@ export function F0Chart({ history }: { history: Snapshot[] }) {
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
             <Legend />
             <ReferenceLine y={100} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="F0" stroke="#c084fc" dot={false} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="F0"
+              stroke="#c084fc"
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

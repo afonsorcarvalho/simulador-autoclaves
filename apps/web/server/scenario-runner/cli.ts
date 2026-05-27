@@ -192,7 +192,9 @@ if (isMain) {
   // Args: <scenario.yaml> [--out trace.csv] [--sample-period <seconds>]
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('usage: tsx server/scenario-runner/cli.ts <scenario.yaml> [--out trace.csv] [--sample-period 1.0]');
+    console.error(
+      'usage: tsx server/scenario-runner/cli.ts <scenario.yaml> [--out trace.csv] [--sample-period 1.0]',
+    );
     process.exit(1);
   }
   const scenarioPath = resolve(process.cwd(), args[0]!);
@@ -205,5 +207,9 @@ if (isMain) {
       sample_period_s = Number.parseFloat(args[++i]!);
     }
   }
-  main({ scenarioPath, ...(outCsv ? { outCsv } : {}), ...(sample_period_s !== undefined ? { sample_period_s } : {}) }).then((code) => process.exit(code));
+  main({
+    scenarioPath,
+    ...(outCsv ? { outCsv } : {}),
+    ...(sample_period_s !== undefined ? { sample_period_s } : {}),
+  }).then((code) => process.exit(code));
 }

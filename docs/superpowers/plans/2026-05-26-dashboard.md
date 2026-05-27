@@ -65,20 +65,20 @@ apps/web/
 
 ### File responsibilities
 
-| File | One-line responsibility |
-|---|---|
-| `runtime/snapshot.ts` | Build a `Snapshot` from `SystemState` + cycle metadata; publisher with subscriber callbacks |
-| `runtime/singleton.ts` | Lazy-init the shared `Runtime` (bridge + orchestrator + plc); accessed by API routes |
-| `runtime/scheduler.ts` | Drives `runtime.tick()` under `setInterval` at wall-clock rate |
-| `runtime/manual-control.ts` | When no cycle is running, lets the user toggle valves via API directly (writes DI) |
-| `api/snapshot/stream/route.ts` | SSE: subscribes to snapshot publisher, writes `data:` lines |
-| `api/cycle/start/route.ts` | Loads YAML cycle, calls `runtime.startCycle()` |
-| `api/cycle/stop/route.ts` | Calls `runtime.stopCycle()`; valves go to safe state |
-| `api/cycle/status/route.ts` | Returns `{ running, phase, elapsed_s, f0_min }` |
-| `api/valves/[id]/route.ts` | POST `{ value: boolean }` — calls `manualValve(id, value)` |
-| `lib/useSnapshot.ts` | React hook subscribing to SSE; returns latest snapshot + ring buffer |
-| `components/live/*.tsx` | Each renders one section of the live view from the snapshot |
-| `components/virtual-plc/ValvePanel.tsx` | Grid of valve toggles |
+| File                                    | One-line responsibility                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `runtime/snapshot.ts`                   | Build a `Snapshot` from `SystemState` + cycle metadata; publisher with subscriber callbacks |
+| `runtime/singleton.ts`                  | Lazy-init the shared `Runtime` (bridge + orchestrator + plc); accessed by API routes        |
+| `runtime/scheduler.ts`                  | Drives `runtime.tick()` under `setInterval` at wall-clock rate                              |
+| `runtime/manual-control.ts`             | When no cycle is running, lets the user toggle valves via API directly (writes DI)          |
+| `api/snapshot/stream/route.ts`          | SSE: subscribes to snapshot publisher, writes `data:` lines                                 |
+| `api/cycle/start/route.ts`              | Loads YAML cycle, calls `runtime.startCycle()`                                              |
+| `api/cycle/stop/route.ts`               | Calls `runtime.stopCycle()`; valves go to safe state                                        |
+| `api/cycle/status/route.ts`             | Returns `{ running, phase, elapsed_s, f0_min }`                                             |
+| `api/valves/[id]/route.ts`              | POST `{ value: boolean }` — calls `manualValve(id, value)`                                  |
+| `lib/useSnapshot.ts`                    | React hook subscribing to SSE; returns latest snapshot + ring buffer                        |
+| `components/live/*.tsx`                 | Each renders one section of the live view from the snapshot                                 |
+| `components/virtual-plc/ValvePanel.tsx` | Grid of valve toggles                                                                       |
 
 ---
 
@@ -87,22 +87,22 @@ apps/web/
 ```typescript
 // runtime/snapshot.ts
 export interface Snapshot {
-  t_s: number;                          // sim time
-  wall_t_ms: number;                    // wall clock ms when produced
+  t_s: number; // sim time
+  wall_t_ms: number; // wall clock ms when produced
   cycle_running: boolean;
-  cycle_phase: string;                  // 'IDLE' | 'PREHEAT' | ... | 'COMPLETE' | 'STOPPED'
+  cycle_phase: string; // 'IDLE' | 'PREHEAT' | ... | 'COMPLETE' | 'STOPPED'
   cycle_elapsed_s: number;
   f0_min: number;
   pressures: { chamber_bar: number; jacket_bar: number; generator_bar: number };
   temperatures: { chamber_C: number; testemunho_C: number; jacket_C: number; generator_C: number };
-  valves: Record<string, boolean>;      // valve id → commanded state
+  valves: Record<string, boolean>; // valve id → commanded state
   masses: { air_chamber_kg: number; vap_chamber_kg: number; liq_chamber_kg: number };
 }
 
 export type SnapshotSubscriber = (snap: Snapshot) => void;
 export class SnapshotPublisher {
   publish(snap: Snapshot): void;
-  subscribe(cb: SnapshotSubscriber): () => void;  // returns unsubscribe
+  subscribe(cb: SnapshotSubscriber): () => void; // returns unsubscribe
   get latest(): Snapshot | null;
 }
 
@@ -110,26 +110,30 @@ export class SnapshotPublisher {
 export interface Runtime {
   bridge: ModbusBridge;
   orchestrator: Orchestrator;
-  plc: VirtualPLC | null;               // null = no cycle running
+  plc: VirtualPLC | null; // null = no cycle running
   publisher: SnapshotPublisher;
   cycle_running: boolean;
   startCycle(cycle: CycleConfig): void;
   stopCycle(): void;
-  tick(): Promise<void>;                // single tick (orchestrator + plc if running)
+  tick(): Promise<void>; // single tick (orchestrator + plc if running)
 }
-export function getRuntime(): Runtime;  // lazy singleton, survives HMR via globalThis
-export function resetRuntime(): void;   // test-only: tear down + recreate
+export function getRuntime(): Runtime; // lazy singleton, survives HMR via globalThis
+export function resetRuntime(): void; // test-only: tear down + recreate
 
 // runtime/scheduler.ts
 export interface SchedulerOpts {
   runtime: Runtime;
-  tick_wall_ms: number;                 // e.g., 100ms (10 Hz scheduler)
-  ticks_per_wall: number;               // sim ticks per wall tick; e.g., 2 → 50ms sim per 100ms wall
+  tick_wall_ms: number; // e.g., 100ms (10 Hz scheduler)
+  ticks_per_wall: number; // sim ticks per wall tick; e.g., 2 → 50ms sim per 100ms wall
 }
-export function startScheduler(opts: SchedulerOpts): () => void;  // returns stop fn
+export function startScheduler(opts: SchedulerOpts): () => void; // returns stop fn
 
 // runtime/manual-control.ts
-export async function setManualValve(runtime: Runtime, valveId: string, value: boolean): Promise<void>;
+export async function setManualValve(
+  runtime: Runtime,
+  valveId: string,
+  value: boolean,
+): Promise<void>;
 // Throws if cycle running.
 ```
 
@@ -138,6 +142,7 @@ export async function setManualValve(runtime: Runtime, valveId: string, value: b
 ## Task 1: Tailwind + base layout
 
 **Files:**
+
 - Create: `apps/web/tailwind.config.ts`
 - Create: `apps/web/postcss.config.mjs`
 - Create: `apps/web/app/globals.css`
@@ -148,6 +153,7 @@ export async function setManualValve(runtime: Runtime, valveId: string, value: b
 - [ ] **Step 1.1: Add Tailwind devDeps**
 
 Run from project root:
+
 ```
 pnpm --filter @sim/web add -D tailwindcss@^3.4.0 postcss@^8.4.0 autoprefixer@^10.4.0
 ```
@@ -162,9 +168,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ok: '#16a34a',     // green-600
-        warn: '#eab308',   // yellow-500
-        err: '#dc2626',    // red-600
+        ok: '#16a34a', // green-600
+        warn: '#eab308', // yellow-500
+        err: '#dc2626', // red-600
       },
     },
   },
@@ -192,10 +198,15 @@ export default {
 @tailwind components;
 @tailwind utilities;
 
-html, body {
+html,
+body {
   background-color: #0f172a; /* slate-900 */
-  color: #f1f5f9;            /* slate-100 */
-  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: #f1f5f9; /* slate-100 */
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 ```
 
@@ -217,9 +228,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="min-h-screen">
         <nav className="border-b border-slate-700 bg-slate-800 px-4 py-3 flex gap-4 items-center">
           <span className="font-bold text-lg">Simulador de Autoclaves</span>
-          <Link href="/" className="hover:text-blue-400">Home</Link>
-          <Link href="/live" className="hover:text-blue-400">Live</Link>
-          <Link href="/virtual-plc" className="hover:text-blue-400">Virtual PLC</Link>
+          <Link href="/" className="hover:text-blue-400">
+            Home
+          </Link>
+          <Link href="/live" className="hover:text-blue-400">
+            Live
+          </Link>
+          <Link href="/virtual-plc" className="hover:text-blue-400">
+            Virtual PLC
+          </Link>
         </nav>
         <main className="p-4">{children}</main>
       </body>
@@ -238,10 +255,14 @@ export default function Home() {
       <p className="text-slate-300">Cycle status overview lands in Task 10.</p>
       <ul className="list-disc list-inside text-sm text-slate-400">
         <li>
-          <a href="/live" className="text-blue-400 hover:underline">Live monitor</a>
+          <a href="/live" className="text-blue-400 hover:underline">
+            Live monitor
+          </a>
         </li>
         <li>
-          <a href="/virtual-plc" className="text-blue-400 hover:underline">Virtual PLC control panel</a>
+          <a href="/virtual-plc" className="text-blue-400 hover:underline">
+            Virtual PLC control panel
+          </a>
         </li>
       </ul>
     </div>
@@ -252,6 +273,7 @@ export default function Home() {
 - [ ] **Step 1.7: Smoke**
 
 Run from project root:
+
 ```
 pnpm --filter @sim/web build
 ```
@@ -270,6 +292,7 @@ git commit -m "feat(web): tailwind + base layout"
 ## Task 2: Snapshot publisher (TDD)
 
 **Files:**
+
 - Create: `apps/web/test/runtime/snapshot.test.ts`
 - Create: `apps/web/server/runtime/snapshot.ts`
 
@@ -298,7 +321,14 @@ function makeParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
-    load: { m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500, h_gas_metal: 200, h_metal_fabric: 100 },
+    load: {
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
+    },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
   };
@@ -329,8 +359,12 @@ describe('buildSnapshot', () => {
 describe('SnapshotPublisher', () => {
   function dummy(t = 0): import('../../server/runtime/snapshot.js').Snapshot {
     return {
-      t_s: t, wall_t_ms: 0,
-      cycle_running: false, cycle_phase: 'IDLE', cycle_elapsed_s: 0, f0_min: 0,
+      t_s: t,
+      wall_t_ms: 0,
+      cycle_running: false,
+      cycle_phase: 'IDLE',
+      cycle_elapsed_s: 0,
+      f0_min: 0,
       pressures: { chamber_bar: 1, jacket_bar: 1, generator_bar: 1 },
       temperatures: { chamber_C: 22, testemunho_C: 22, jacket_C: 22, generator_C: 22 },
       valves: {},
@@ -402,9 +436,10 @@ export interface BuildSnapshotOpts {
 export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
   const pc = chamber_pressure(o.state.chamber, o.params.chamber);
   const pj = chamber_pressure(o.state.jacket, o.params.jacket);
-  const pg = o.state.generator && o.params.generator
-    ? generator_pressure(o.state.generator, o.params.generator)
-    : 0;
+  const pg =
+    o.state.generator && o.params.generator
+      ? generator_pressure(o.state.generator, o.params.generator)
+      : 0;
   return {
     t_s: o.state.time_s,
     wall_t_ms: Date.now(),
@@ -476,6 +511,7 @@ git commit -m "feat(web): snapshot builder + publisher"
 ## Task 3: Singleton runtime (TDD)
 
 **Files:**
+
 - Create: `apps/web/test/runtime/singleton.test.ts`
 - Create: `apps/web/server/runtime/singleton.ts`
 
@@ -509,9 +545,15 @@ describe('getRuntime', () => {
     const r = getRuntime();
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     expect(r.cycle_running).toBe(true);
     expect(r.plc).not.toBeNull();
@@ -521,9 +563,15 @@ describe('getRuntime', () => {
     const r = getRuntime();
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     r.stopCycle();
     expect(r.cycle_running).toBe(false);
@@ -535,9 +583,15 @@ describe('getRuntime', () => {
     const t0 = r.orchestrator.getState().time_s;
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     await r.tick();
     expect(r.orchestrator.getState().time_s).toBeGreaterThan(t0);
@@ -581,22 +635,63 @@ const TICK_DT_S = 0.05;
 
 function defaultParams(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200, relief_pressure_Pa: bar_to_Pa(3.04) },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+      relief_pressure_Pa: bar_to_Pa(3.04),
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
-    load: { m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500, h_gas_metal: 200, h_metal_fabric: 100 },
+    load: {
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
+    },
     valves: {
-      V_STEAM_IN_INT: { from: 'generator', to: 'chamber', params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP } },
+      V_STEAM_IN_INT: {
+        from: 'generator',
+        to: 'chamber',
+        params: { Cv: 8e-6, gamma: GAMMA_VAP, R: R_VAP },
+      },
       V_STEAM_IN_JACKET: {
-        from: 'generator', to: 'jacket',
+        from: 'generator',
+        to: 'jacket',
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
-        thermostat: { target: 'jacket', close_at_Pa: bar_to_Pa(3.54), reopen_at_Pa: bar_to_Pa(3.34) },
+        thermostat: {
+          target: 'jacket',
+          close_at_Pa: bar_to_Pa(3.54),
+          reopen_at_Pa: bar_to_Pa(3.34),
+        },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
-      V_EXHAUST: { from: 'chamber', to: 'atmosphere', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
-      V_AIR_IN: { from: 'atmosphere', to: 'chamber', params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR } },
+      V_EXHAUST: {
+        from: 'chamber',
+        to: 'atmosphere',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
+      V_AIR_IN: {
+        from: 'atmosphere',
+        to: 'chamber',
+        params: { Cv: 2e-5, gamma: GAMMA_AIR, R: R_AIR },
+      },
     },
-    external: { steam_line_pressure: bar_to_Pa(5), steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
+    external: {
+      steam_line_pressure: bar_to_Pa(5),
+      steam_line_T: C_to_K(160),
+      atmosphere_T: C_to_K(22),
+    },
     jacket_chamber_h_W_per_K: 150,
   };
 }
@@ -605,7 +700,13 @@ function preheatedInitial(p: SystemParams): SystemState {
   const T_amb = C_to_K(22);
   const T_hot = C_to_K(138);
   return {
-    chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb), m_vap: 0, m_liq: 0, T: T_amb, T_wall: T_hot },
+    chamber: {
+      m_air: (P_ATM * p.chamber.V) / (R_AIR * T_amb),
+      m_vap: 0,
+      m_liq: 0,
+      T: T_amb,
+      T_wall: T_hot,
+    },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
     load: { T_metal: T_amb, T_fabric: T_amb },
@@ -676,7 +777,9 @@ class RuntimeImpl implements Runtime {
       params: this.params,
       cycle_running: this.cycle_running,
       cycle_phase: this.plc ? this.plc.getPhase() : 'IDLE',
-      cycle_elapsed_s: this.cycle_running ? this.orchestrator.getState().time_s - this.cycle_started_at_s : 0,
+      cycle_elapsed_s: this.cycle_running
+        ? this.orchestrator.getState().time_s - this.cycle_started_at_s
+        : 0,
       valves: valves as Record<string, boolean>,
     });
     this.publisher.publish(snap);
@@ -715,6 +818,7 @@ git commit -m "feat(web): singleton runtime (bridge + orchestrator + plc + publi
 ## Task 4: Real-time scheduler (TDD)
 
 **Files:**
+
 - Create: `apps/web/test/runtime/scheduler.test.ts`
 - Create: `apps/web/server/runtime/scheduler.ts`
 
@@ -729,7 +833,9 @@ import { startScheduler } from '../../server/runtime/scheduler.js';
 describe('startScheduler', () => {
   beforeEach(() => resetRuntime());
   let stop: (() => void) | null = null;
-  afterEach(() => { if (stop) stop(); });
+  afterEach(() => {
+    if (stop) stop();
+  });
 
   it('ticks runtime at tick_wall_ms cadence', async () => {
     const r = getRuntime();
@@ -817,6 +923,7 @@ git commit -m "feat(web): real-time scheduler (setInterval + ticks_per_wall fast
 ## Task 5: Manual valve control (TDD)
 
 **Files:**
+
 - Create: `apps/web/test/runtime/manual-control.test.ts`
 - Create: `apps/web/server/runtime/manual-control.ts`
 
@@ -842,9 +949,16 @@ describe('setManualValve', () => {
   it('throws when a cycle is running (would conflict with PLC)', async () => {
     const r = getRuntime();
     r.startCycle({
-      name: 't', sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      name: 't',
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     await expect(setManualValve(r, 'V_VAC', true)).rejects.toThrow(/cycle running/i);
   });
@@ -865,7 +979,11 @@ import type { Runtime } from './singleton.js';
 import { RegisterAccess } from '../bridge/register-access.js';
 import { REGISTERS, type RegisterId } from '@sim/protocol/registers';
 
-export async function setManualValve(runtime: Runtime, valveId: string, value: boolean): Promise<void> {
+export async function setManualValve(
+  runtime: Runtime,
+  valveId: string,
+  value: boolean,
+): Promise<void> {
   if (runtime.cycle_running) {
     throw new Error('cannot toggle valve while cycle running');
   }
@@ -891,6 +1009,7 @@ git commit -m "feat(web): manual valve override (rejects when cycle running)"
 ## Task 6: API routes (cycle + valves + status)
 
 **Files:**
+
 - Create: `apps/web/app/api/cycle/start/route.ts`
 - Create: `apps/web/app/api/cycle/stop/route.ts`
 - Create: `apps/web/app/api/cycle/status/route.ts`
@@ -900,6 +1019,7 @@ git commit -m "feat(web): manual valve override (rejects when cycle running)"
 - [ ] **Step 6.1: Verify scenario YAML exists**
 
 Run:
+
 ```
 ls apps/web/server/scenarios/
 ```
@@ -1017,6 +1137,7 @@ git commit -m "feat(web): cycle + valve API routes (start/stop/status, manual ov
 ## Task 7: SSE snapshot stream + scheduler bootstrap
 
 **Files:**
+
 - Create: `apps/web/app/api/snapshot/stream/route.ts`
 - Create: `apps/web/server/runtime/bootstrap.ts` (auto-starts scheduler on first import)
 
@@ -1105,11 +1226,13 @@ export async function GET(): Promise<Response> {
 - [ ] **Step 7.3: Smoke run dev server**
 
 Run from project root:
+
 ```
 pnpm --filter @sim/web dev
 ```
 
 In another terminal (or after server is up):
+
 ```
 curl -N http://localhost:3000/api/snapshot/stream
 ```
@@ -1130,6 +1253,7 @@ git commit -m "feat(web): SSE snapshot stream + scheduler bootstrap"
 ## Task 8: useSnapshot hook + lib utilities
 
 **Files:**
+
 - Create: `apps/web/lib/useSnapshot.ts`
 - Create: `apps/web/lib/api.ts`
 - Create: `apps/web/lib/format.ts`
@@ -1167,7 +1291,9 @@ export interface CycleStatus {
 }
 
 export async function startCycle(scenario = 'ster-134-prevac.yaml'): Promise<void> {
-  const res = await fetch(`/api/cycle/start?scenario=${encodeURIComponent(scenario)}`, { method: 'POST' });
+  const res = await fetch(`/api/cycle/start?scenario=${encodeURIComponent(scenario)}`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error((await res.json()).error ?? `start failed: ${res.status}`);
 }
 
@@ -1252,6 +1378,7 @@ git commit -m "feat(web): client-side hooks + API helpers + formatters"
 ## Task 9: Live page (charts + valve list + phase header)
 
 **Files:**
+
 - Create: `apps/web/components/ui/Card.tsx`
 - Create: `apps/web/components/ui/Badge.tsx`
 - Create: `apps/web/components/ConnectionIndicator.tsx`
@@ -1277,7 +1404,11 @@ import type { ReactNode } from 'react';
 export function Card({ children, title }: { children: ReactNode; title?: string }) {
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
-      {title && <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">{title}</h2>}
+      {title && (
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">
+          {title}
+        </h2>
+      )}
       {children}
     </div>
   );
@@ -1296,8 +1427,18 @@ const variants = {
   neutral: 'bg-slate-600 text-slate-100',
 } as const;
 
-export function Badge({ children, variant = 'neutral' }: { children: ReactNode; variant?: keyof typeof variants }) {
-  return <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${variants[variant]}`}>{children}</span>;
+export function Badge({
+  children,
+  variant = 'neutral',
+}: {
+  children: ReactNode;
+  variant?: keyof typeof variants;
+}) {
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${variants[variant]}`}>
+      {children}
+    </span>
+  );
 }
 ```
 
@@ -1329,7 +1470,9 @@ export function PhaseHeader({ snap }: { snap: Snapshot | null }) {
     <Card title="Phase">
       <div className="flex items-center gap-4">
         <span className="text-2xl font-bold tracking-wide">{snap.cycle_phase}</span>
-        <Badge variant={snap.cycle_running ? 'ok' : 'neutral'}>{snap.cycle_running ? 'running' : 'idle'}</Badge>
+        <Badge variant={snap.cycle_running ? 'ok' : 'neutral'}>
+          {snap.cycle_running ? 'running' : 'idle'}
+        </Badge>
         <span className="text-slate-400">elapsed: {fmtSeconds(snap.cycle_elapsed_s)}</span>
         <span className="text-slate-400">F0: {fmtMinutes(snap.f0_min)}</span>
       </div>
@@ -1345,7 +1488,16 @@ export function PhaseHeader({ snap }: { snap: Snapshot | null }) {
 
 import { Card } from '../ui/Card';
 import type { Snapshot } from '../../server/runtime/snapshot';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 
 export function PressureChart({ history }: { history: Snapshot[] }) {
   const data = history.map((s) => ({
@@ -1364,9 +1516,27 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
             <Legend />
             <ReferenceLine y={3.04} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="chamber" stroke="#60a5fa" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="jacket" stroke="#fb923c" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="generator" stroke="#34d399" dot={false} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="chamber"
+              stroke="#60a5fa"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="jacket"
+              stroke="#fb923c"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="generator"
+              stroke="#34d399"
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -1382,7 +1552,16 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
 
 import { Card } from '../ui/Card';
 import type { Snapshot } from '../../server/runtime/snapshot';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 
 export function TemperatureChart({ history }: { history: Snapshot[] }) {
   const data = history.map((s) => ({
@@ -1402,10 +1581,34 @@ export function TemperatureChart({ history }: { history: Snapshot[] }) {
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
             <Legend />
             <ReferenceLine y={134} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="chamber" stroke="#60a5fa" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="testemunho" stroke="#facc15" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="jacket" stroke="#fb923c" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="generator" stroke="#34d399" dot={false} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="chamber"
+              stroke="#60a5fa"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="testemunho"
+              stroke="#facc15"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="jacket"
+              stroke="#fb923c"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="generator"
+              stroke="#34d399"
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -1421,7 +1624,16 @@ export function TemperatureChart({ history }: { history: Snapshot[] }) {
 
 import { Card } from '../ui/Card';
 import type { Snapshot } from '../../server/runtime/snapshot';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 
 export function F0Chart({ history }: { history: Snapshot[] }) {
   const data = history.map((s) => ({ t: s.t_s.toFixed(1), F0: s.f0_min }));
@@ -1431,11 +1643,23 @@ export function F0Chart({ history }: { history: Snapshot[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <XAxis dataKey="t" stroke="#94a3b8" tick={{ fontSize: 10 }} />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} scale="log" domain={[0.01, 'auto']} allowDataOverflow />
+            <YAxis
+              stroke="#94a3b8"
+              tick={{ fontSize: 10 }}
+              scale="log"
+              domain={[0.01, 'auto']}
+              allowDataOverflow
+            />
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
             <Legend />
             <ReferenceLine y={100} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="F0" stroke="#c084fc" dot={false} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="F0"
+              stroke="#c084fc"
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -1522,6 +1746,7 @@ git commit -m "feat(web): live page (phase + pressure/temperature/F0 charts + va
 ## Task 10: Virtual PLC control panel page
 
 **Files:**
+
 - Create: `apps/web/components/virtual-plc/ValvePanel.tsx`
 - Create: `apps/web/app/virtual-plc/page.tsx`
 - Modify: `apps/web/app/page.tsx` (home: cycle controls)
@@ -1537,9 +1762,18 @@ import { setValve } from '../../lib/api';
 import type { Snapshot } from '../../server/runtime/snapshot';
 
 const VALVE_IDS = [
-  'V_STEAM_IN_INT', 'V_STEAM_IN_JACKET', 'V_AIR_IN', 'V_VAC', 'V_EXHAUST',
-  'V_DRAIN_INT', 'V_DRAIN_JACKET', 'V_SEAL_CLEAN', 'V_SEAL_STERILE',
-  'V_GEN_WATER_IN', 'PUMP_VAC', 'HEATER_GEN',
+  'V_STEAM_IN_INT',
+  'V_STEAM_IN_JACKET',
+  'V_AIR_IN',
+  'V_VAC',
+  'V_EXHAUST',
+  'V_DRAIN_INT',
+  'V_DRAIN_JACKET',
+  'V_SEAL_CLEAN',
+  'V_SEAL_STERILE',
+  'V_GEN_WATER_IN',
+  'PUMP_VAC',
+  'HEATER_GEN',
 ];
 
 export function ValvePanel({ snap, disabled }: { snap: Snapshot | null; disabled: boolean }) {
@@ -1604,8 +1838,8 @@ export default function VirtualPlcPage() {
         <ConnectionIndicator connected={connected} />
       </div>
       <p className="text-slate-400 text-sm">
-        Manual valve overrides while no cycle is running. Useful for testing individual valves
-        and seeing physics response without the cycle state machine.
+        Manual valve overrides while no cycle is running. Useful for testing individual valves and
+        seeing physics response without the cycle state machine.
       </p>
       <ValvePanel snap={snapshot} disabled={snapshot?.cycle_running ?? false} />
     </div>
@@ -1635,13 +1869,21 @@ export default function Home() {
   const onStart = async () => {
     setBusy(true);
     setError(null);
-    try { await startCycle(); } catch (e) { setError((e as Error).message); }
+    try {
+      await startCycle();
+    } catch (e) {
+      setError((e as Error).message);
+    }
     setBusy(false);
   };
   const onStop = async () => {
     setBusy(true);
     setError(null);
-    try { await stopCycle(); } catch (e) { setError((e as Error).message); }
+    try {
+      await stopCycle();
+    } catch (e) {
+      setError((e as Error).message);
+    }
     setBusy(false);
   };
 
@@ -1657,8 +1899,12 @@ export default function Home() {
           <Badge variant={snapshot?.cycle_running ? 'ok' : 'neutral'}>
             {snapshot?.cycle_running ? 'running' : 'idle'}
           </Badge>
-          <span className="text-slate-300">phase: <span className="font-mono">{snapshot?.cycle_phase ?? 'IDLE'}</span></span>
-          <span className="text-slate-300">elapsed: {fmtSeconds(snapshot?.cycle_elapsed_s ?? 0)}</span>
+          <span className="text-slate-300">
+            phase: <span className="font-mono">{snapshot?.cycle_phase ?? 'IDLE'}</span>
+          </span>
+          <span className="text-slate-300">
+            elapsed: {fmtSeconds(snapshot?.cycle_elapsed_s ?? 0)}
+          </span>
           <span className="text-slate-300">F0: {fmtMinutes(snapshot?.f0_min ?? 0)}</span>
           <div className="ml-auto flex gap-2">
             <button
@@ -1684,7 +1930,9 @@ export default function Home() {
         <Link href="/live" className="block">
           <Card>
             <div className="text-lg font-semibold">Live monitor →</div>
-            <div className="text-slate-400 text-sm">Charts: pressure, temperature, F0; valve states</div>
+            <div className="text-slate-400 text-sm">
+              Charts: pressure, temperature, F0; valve states
+            </div>
           </Card>
         </Link>
         <Link href="/virtual-plc" className="block">
@@ -1717,6 +1965,7 @@ git commit -m "feat(web): virtual PLC control panel + home cycle controls"
 ## Task 11: Build + dev-server smoke + finalize
 
 **Files:**
+
 - Modify: `TODO.md`
 
 - [ ] **Step 11.1: Run all gates**
@@ -1739,6 +1988,7 @@ pnpm --filter @sim/web dev
 ```
 
 In a browser, open:
+
 - http://localhost:3000 — home with cycle controls
 - http://localhost:3000/live — live charts (should show pressures/temperatures even idle, since orchestrator ticks)
 - http://localhost:3000/virtual-plc — valve buttons

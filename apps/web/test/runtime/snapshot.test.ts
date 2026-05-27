@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildSnapshot, SnapshotPublisher } from '../../server/runtime/snapshot.js';
 import type { SystemState, SystemParams } from '@sim/physics';
+import type { Snapshot } from '../../server/runtime/snapshot.js';
 import { C_to_K } from '@sim/physics';
 
 function makeState(): SystemState {
@@ -19,7 +20,14 @@ function makeParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
-    load: { m_metal: 20, cp_metal: 500, m_fabric: 5, cp_fabric: 1500, h_gas_metal: 200, h_metal_fabric: 100 },
+    load: {
+      m_metal: 20,
+      cp_metal: 500,
+      m_fabric: 5,
+      cp_fabric: 1500,
+      h_gas_metal: 200,
+      h_metal_fabric: 100,
+    },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
   };
@@ -48,10 +56,14 @@ describe('buildSnapshot', () => {
 });
 
 describe('SnapshotPublisher', () => {
-  function dummy(t = 0): import('../../server/runtime/snapshot.js').Snapshot {
+  function dummy(t = 0): Snapshot {
     return {
-      t_s: t, wall_t_ms: 0,
-      cycle_running: false, cycle_phase: 'IDLE', cycle_elapsed_s: 0, f0_min: 0,
+      t_s: t,
+      wall_t_ms: 0,
+      cycle_running: false,
+      cycle_phase: 'IDLE',
+      cycle_elapsed_s: 0,
+      f0_min: 0,
       pressures: { chamber_bar: 1, jacket_bar: 1, generator_bar: 1 },
       temperatures: { chamber_C: 22, testemunho_C: 22, jacket_C: 22, generator_C: 22 },
       valves: {},

@@ -5,9 +5,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ok: '#16a34a',     // green-600
-        warn: '#eab308',   // yellow-500
-        err: '#dc2626',    // red-600
+        ok: '#16a34a', // green-600
+        warn: '#eab308', // yellow-500
+        err: '#dc2626', // red-600
       },
     },
   },

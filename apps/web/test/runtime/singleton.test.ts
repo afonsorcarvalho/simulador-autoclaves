@@ -24,9 +24,15 @@ describe('getRuntime', () => {
     const r = getRuntime();
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     expect(r.cycle_running).toBe(true);
     expect(r.plc).not.toBeNull();
@@ -36,9 +42,15 @@ describe('getRuntime', () => {
     const r = getRuntime();
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     r.stopCycle();
     expect(r.cycle_running).toBe(false);
@@ -50,9 +62,15 @@ describe('getRuntime', () => {
     const t0 = r.orchestrator.getState().time_s;
     r.startCycle({
       name: 'test',
-      sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-      prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-      preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
     });
     await r.tick();
     expect(r.orchestrator.getState().time_s).toBeGreaterThan(t0);

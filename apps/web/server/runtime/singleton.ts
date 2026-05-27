@@ -171,8 +171,7 @@ class RuntimeImpl implements Runtime {
 
 // Singleton via globalThis (survives Next.js HMR in dev)
 declare global {
-  // eslint-disable-next-line no-var
-  var __SIM_RUNTIME__: Runtime | undefined;
+  var __SIM_RUNTIME__: Runtime | undefined; // eslint-disable-line no-var
 }
 
 export function getRuntime(): Runtime {

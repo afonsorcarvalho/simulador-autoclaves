@@ -50,7 +50,9 @@ export default function Home() {
           <span className="text-slate-300">
             phase: <span className="font-mono">{snapshot?.cycle_phase ?? 'IDLE'}</span>
           </span>
-          <span className="text-slate-300">elapsed: {fmtSeconds(snapshot?.cycle_elapsed_s ?? 0)}</span>
+          <span className="text-slate-300">
+            elapsed: {fmtSeconds(snapshot?.cycle_elapsed_s ?? 0)}
+          </span>
           <span className="text-slate-300">F0: {fmtMinutes(snapshot?.f0_min ?? 0)}</span>
           <div className="ml-auto flex gap-2">
             <button
@@ -76,7 +78,9 @@ export default function Home() {
         <Link href="/live" className="block">
           <Card>
             <div className="text-lg font-semibold">Live monitor →</div>
-            <div className="text-slate-400 text-sm">Charts: pressure, temperature, F0; valve states</div>
+            <div className="text-slate-400 text-sm">
+              Charts: pressure, temperature, F0; valve states
+            </div>
           </Card>
         </Link>
         <Link href="/virtual-plc" className="block">

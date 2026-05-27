@@ -30,9 +30,27 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
             <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
             <Legend />
             <ReferenceLine y={3.04} stroke="#dc2626" strokeDasharray="3 3" />
-            <Line type="monotone" dataKey="chamber" stroke="#60a5fa" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="jacket" stroke="#fb923c" dot={false} isAnimationActive={false} />
-            <Line type="monotone" dataKey="generator" stroke="#34d399" dot={false} isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="chamber"
+              stroke="#60a5fa"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="jacket"
+              stroke="#fb923c"
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="generator"
+              stroke="#34d399"
+              dot={false}
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -6,7 +6,9 @@ export interface CycleStatus {
 }
 
 export async function startCycle(scenario = 'ster-134-prevac.yaml'): Promise<void> {
-  const res = await fetch(`/api/cycle/start?scenario=${encodeURIComponent(scenario)}`, { method: 'POST' });
+  const res = await fetch(`/api/cycle/start?scenario=${encodeURIComponent(scenario)}`, {
+    method: 'POST',
+  });
   if (!res.ok) {
     const body = (await res.json()) as { error?: string };
     throw new Error(body.error ?? `start failed: ${res.status}`);

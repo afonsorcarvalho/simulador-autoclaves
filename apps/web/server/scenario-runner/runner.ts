@@ -90,7 +90,9 @@ export async function runScenario(opts: ScenarioOpts): Promise<ScenarioResult> {
   const trace: TraceRow[] = [];
   const sample_period_s = opts.trace?.sample_period_s ?? Infinity;
   const sample_period_ticks =
-    sample_period_s === Infinity ? Infinity : Math.max(1, Math.round(sample_period_s / opts.tickDt_s));
+    sample_period_s === Infinity
+      ? Infinity
+      : Math.max(1, Math.round(sample_period_s / opts.tickDt_s));
 
   const max_ticks = Math.ceil(opts.max_duration_s / opts.tickDt_s);
   let last_phase = plc.getPhase();
