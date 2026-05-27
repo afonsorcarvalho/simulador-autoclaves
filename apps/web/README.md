@@ -21,8 +21,16 @@ python scripts/plot_trace.py apps/web/out/trace.csv --save scripts/orchestrator_
 pnpm --filter @sim/web test
 ```
 
-## Dev server (when dashboard exists — sub-projeto 4)
+## Dev server (Dashboard MVP)
 
 ```bash
 pnpm --filter @sim/web dev
+# → http://localhost:3030  (port changed from default 3000 to avoid conflicts)
+```
+
+Override port via env:
+
+```bash
+PORT=4000 pnpm --filter @sim/web dev
+# (Next.js -p flag in package.json wins unless overridden by env; pass -p explicitly to change.)
 ```
