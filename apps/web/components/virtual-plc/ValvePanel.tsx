@@ -18,6 +18,7 @@ const VALVE_IDS = [
   'V_GEN_WATER_IN',
   'PUMP_VAC',
   'HEATER_GEN',
+  'COMPRESSOR',
 ];
 
 export function ValvePanel({ snap, disabled }: { snap: Snapshot | null; disabled: boolean }) {

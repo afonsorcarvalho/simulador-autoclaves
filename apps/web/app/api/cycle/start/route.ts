@@ -4,8 +4,12 @@ import { resolve } from 'node:path';
 import yaml from 'js-yaml';
 import { CycleConfigSchema } from '../../../../server/virtual-plc/cycle-config';
 import { getRuntime } from '../../../../server/runtime/singleton';
+import { ensureSchedulerRunning } from '../../../../server/runtime/bootstrap';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  ensureSchedulerRunning();
   const url = new URL(req.url);
   const scenario = url.searchParams.get('scenario') ?? 'ster-134-prevac.yaml';
   const path = resolve(process.cwd(), 'server/scenarios', scenario);

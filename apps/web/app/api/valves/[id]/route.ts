@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getRuntime } from '../../../../server/runtime/singleton';
 import { setManualValve } from '../../../../server/runtime/manual-control';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   let body: { value?: boolean };

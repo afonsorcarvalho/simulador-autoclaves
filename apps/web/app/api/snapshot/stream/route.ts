@@ -7,6 +7,9 @@ export async function GET(): Promise<Response> {
   ensureSchedulerRunning();
   const runtime = getRuntime();
 
+  let unsubscribe: (() => void) | null = null;
+  let heartbeatHandle: ReturnType<typeof setInterval> | null = null;
+
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder();
@@ -16,32 +19,32 @@ export async function GET(): Promise<Response> {
         controller.enqueue(enc.encode(`data: ${JSON.stringify(runtime.publisher.latest)}\n\n`));
       }
 
-      const unsub = runtime.publisher.subscribe((snap) => {
+      unsubscribe = runtime.publisher.subscribe((snap) => {
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(snap)}\n\n`));
         } catch {
-          // controller closed; cancel() will fire
+          // controller closed; cancel() will fire and tear down
         }
       });
 
       // Heartbeat every 10s to keep connection open through proxies
-      const heartbeat = setInterval(() => {
+      heartbeatHandle = setInterval(() => {
         try {
           controller.enqueue(enc.encode(`: heartbeat\n\n`));
         } catch {
           /* ignore */
         }
       }, 10000);
-
-      // Stash cleanup hook on the controller for cancel() to invoke
-      (controller as unknown as { _cleanup?: () => void })._cleanup = () => {
-        clearInterval(heartbeat);
-        unsub();
-      };
     },
     cancel() {
-      const c = this as unknown as { _cleanup?: () => void };
-      c._cleanup?.();
+      if (heartbeatHandle !== null) {
+        clearInterval(heartbeatHandle);
+        heartbeatHandle = null;
+      }
+      if (unsubscribe !== null) {
+        unsubscribe();
+        unsubscribe = null;
+      }
     },
   });
 

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getRuntime } from '../../../../server/runtime/singleton';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const r = getRuntime();
   const snap = r.publisher.latest;

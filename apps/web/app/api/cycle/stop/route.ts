@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getRuntime } from '../../../../server/runtime/singleton';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
   const runtime = getRuntime();
   if (!runtime.cycle_running) {
