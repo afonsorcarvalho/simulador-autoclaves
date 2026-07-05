@@ -219,6 +219,33 @@ quase-nulo; e/ou tratar o gás vac­uo-só (massa < limiar) como termodinamicame
 a T_sat(p_vap) ou à parede, não ao teto). Alvo: gás da câmara não excede a saturação → convecção deixa
 de aquecer a carga no início do DRY → o flash da água (0.38 kg) faz a queda aparecer end-to-end.
 
+### 8b.1 Diagnóstico refinado + protótipo provado (2026-07-05, sessão)
+
+Observação-chave do utilizador (correta): **vapor saturado tem T travada à pressão (curva de saturação),
+sempre**; a jaqueta não pode superaquecê-lo. Medido no trace: o gás da câmara estava **+24 °C acima de
+T_sat** no HOLD/PRESSURIZE (subia 137→158 °C a P constante 3.04 bar) — supersaturado, impossível.
+
+**Duas causas:** (1) a condução jaqueta→câmara (`jacket_chamber_h_W_per_K`) era somada ao `Q_external`
+do **gás** (devia ir para a **parede**); (2) T do gás era livre, sem pin de saturação.
+
+**Protótipo (implementado e revertido — provou o princípio, mas não é direto):**
+- Rotear a condução para a parede (`ChamberFluxes.Q_wall_external`) + **pin do gás a T_sat(p_vap)**
+  quando dominado por vapor (excesso devolvido à parede). → **Resultado: gás SATURADO, dT ≈ 0.0–0.3 °C**
+  o ciclo todo (era +24). O núcleo funciona.
+- **Fallout que o torna sub-projeto (spec→plano, não patch):**
+  1. Com o gás pinned a saturação, o **líquido da câmara não evapora** (sem sub-saturação) → é preciso o
+     lado **flash bidirecional** da câmara (líquido vaporiza para alimentar a bomba, arrefecendo — igual à
+     carga). A versão quase-estática desse flash **desestabilizou numericamente** o ciclo (o floor
+     `MIN_HEAT_CAP` e o `k_evap` lento originais existem justamente para evitar estes spikes) → precisa de
+     integração implícita/limitada, com cuidado.
+  2. O ciclo **estagna em PRESSURIZE**: vapor saturado a 3.04 bar é 133.7 °C < 134 → o testemunho nunca
+     atinge o setpoint. Correto! Antes "atingia" só por estar superaquecido. Requer subir o alívio da
+     câmara p/ ~3.2 bar (o Antoine do modelo dá p_sat(134)≈3.09) — retuning de cenários.
+  3. Migração de ~4 testes (wall-coupling passa a aquecer a parede; drying-liquid; hardness/F0 no drying).
+
+**Conclusão:** o pin de saturação é a correção certa e provada, mas landing limpo = redesenho bifásico da
+câmara + estabilidade numérica + retuning de pressão + migração de testes. Candidato a mini-spec dedicado.
+
 ## 9. Questões em aberto (para brainstorm / plano)
 
 1. Nº de nós lumped: 1 carga agregada + testemunho, ou 2 (metal + têxtil) + testemunho?
