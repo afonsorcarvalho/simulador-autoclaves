@@ -32,6 +32,7 @@ function tracesToCsv(rows: TraceRow[]): string {
     'm_air_chamber',
     'm_vap_chamber',
     'm_liq_chamber',
+    'm_water_load',
     'phase',
   ] as const;
   const fmt = (n: number): string => {
@@ -54,6 +55,7 @@ function tracesToCsv(rows: TraceRow[]): string {
         fmt(r.m_air_chamber),
         fmt(r.m_vap_chamber),
         fmt(r.m_liq_chamber),
+        fmt(r.m_water_load),
         r.phase,
       ].join(','),
     );

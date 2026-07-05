@@ -48,46 +48,53 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
   let Q_rad_total = 0;
   let vaporToChamber = 0;
 
+  // Vapor da câmara é um recurso PARTILHADO entre nós. Orçamento total de condensação por passo
+  // (50% do disponível, p/ não esvaziar a câmara num tick) decrementado à medida que cada nó
+  // condensa — senão N nós puxariam cada um 50% e o total ultrapassaria o vapor real (massa fantasma).
+  let condBudget = 0.5 * e.chamber_vapor_kg;
+
   const nodes = s.nodes.map((node) => {
     const m = MATERIALS[node.material];
     const A = estimateArea(node.mass_kg, m);
-
-    // Convecção ∝ densidade do gás (→0 no vácuo)
-    const h_conv = p.h0_conv * (e.rho_gas / e.rho_gas_atm);
-    const Q_conv = h_conv * A * (e.T_gas - node.T); // W (gás→nó)
-
-    // Radiação da jaqueta (domina no vácuo)
-    const Q_rad = m.emissivity * SIGMA_SB * A * (e.T_jacket ** 4 - node.T ** 4); // W
-
-    // Temperatura provisória (só sensível: convecção + radiação).
     const C = Math.max(node.mass_kg * m.cp + node.m_water * CP_WATER, 1e-6);
-    const T_prov = node.T + ((Q_conv + Q_rad) * dt) / C;
-
-    // Pinning de saturação bifásico: uma superfície com água livre é uma interface de
-    // ebulição/condensação presa a T_sat(P_câmara). Excedente de calor evapora água (flash) em
-    // vez de superaquecer; défice abaixo de T_sat num nó molhado/exposto a vapor condensa para
-    // aquecer. Quase-estático (NÃO limitado por Δp): no patamar HOLD Δp≈0 mas o excedente de
-    // radiação tem de evaporar na mesma — o pin é dirigido pelo desequilíbrio de energia,
-    // limitado pela massa de água (flash) e pela capacidade + vapor disponível (condensação).
     const hv = h_vap_water(node.T);
     const T_boil = T_sat_water(e.p_vap_chamber);
     const cap = m.waterCapacity_kg_per_kg * node.mass_kg;
+    const h_gas = p.h0_conv * (e.rho_gas / e.rho_gas_atm); // coef. de troca gás↔carga ∝ densidade
+
+    // Radiação da jaqueta (domina no vácuo) — sempre presente.
+    const Q_rad = m.emissivity * SIGMA_SB * A * (e.T_jacket ** 4 - node.T ** 4); // W
+
     let dWater = 0;
-    let T_final = T_prov;
-    if (node.m_water > 0 && T_prov > T_boil) {
-      // Flash: evapora para puxar T até à ebulição, limitado pela água disponível.
-      const surplus = C * (T_prov - T_boil); // J acima da ebulição
-      const evap = Math.min(surplus / hv, node.m_water);
-      dWater = -evap;
-      T_final = T_prov - (evap * hv) / C; // chega a T_boil se houver água; senão fica acima (secou)
-    } else if (T_prov < T_boil && e.chamber_vapor_kg > 0) {
-      // Condensação: deposita vapor para puxar T até à ebulição, limitado pela capacidade do
-      // material E pelo vapor disponível na câmara (50% p/ não esvaziar num passo — conservação).
-      const deficit = C * (T_boil - T_prov); // J abaixo da ebulição
+    let Q_conv = 0; // só o sensível seco entra aqui (o latente vem via massa de vapor)
+    let T_final: number;
+
+    if (node.T < T_boil - 1e-9 && condBudget > 0) {
+      // REGIME DE CONDENSAÇÃO: em vapor saturado o calor chega POR condensação na superfície mais
+      // fria — entrega calor latente E deposita água (não é convecção seca). q = h·A·(T_sat−T_carga);
+      // água depositada = q·dt/h_vap. É isto que molha a carga no aquecimento (era o gap do come-up).
       const room = Math.max(0, cap - node.m_water);
-      const cond = Math.min(deficit / hv, room, 0.5 * e.chamber_vapor_kg);
-      dWater = cond;
-      T_final = T_prov + (cond * hv) / C; // chega a T_boil se a capacidade/vapor permitir
+      const q_drive = h_gas * A * (T_boil - node.T); // W potencial de condensação
+      const dep = Math.min((q_drive * dt) / hv, room, condBudget); // kg realmente condensados
+      const Q_cond = (dep * hv) / dt; // W efetivamente entregues (limitado por room/orçamento)
+      dWater = dep;
+      condBudget -= dep;
+      let T_new = node.T + ((Q_cond + Q_rad) * dt) / C;
+      if (T_new > T_boil) T_new = T_boil; // não ultrapassa a ebulição por condensação (pinned)
+      T_final = T_new;
+    } else {
+      // REGIME SECO / SUPERAQUECIDO / SEM VAPOR: sensível seco (convecção ∝ρ) + radiação.
+      Q_conv = h_gas * A * (e.T_gas - node.T); // W (gás→nó)
+      const T_prov = node.T + ((Q_conv + Q_rad) * dt) / C;
+      if (node.m_water > 0 && T_prov > T_boil) {
+        // Flash: água livre não deixa superaquecer — evapora até à ebulição (arrefece no vácuo).
+        const surplus = C * (T_prov - T_boil);
+        const evap = Math.min(surplus / hv, node.m_water);
+        dWater = -evap;
+        T_final = T_prov - (evap * hv) / C; // chega a T_boil se houver água; senão fica acima (secou)
+      } else {
+        T_final = T_prov;
+      }
     }
     vaporToChamber += -dWater; // condensação (dWater>0) retira vapor da câmara; flash (<0) adiciona
 

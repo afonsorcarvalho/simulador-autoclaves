@@ -35,6 +35,7 @@ export interface TraceRow {
   m_air_chamber: number;
   m_vap_chamber: number;
   m_liq_chamber: number;
+  m_water_load: number;
   phase: CyclePhase;
 }
 
@@ -68,6 +69,7 @@ function sampleRow(orch: Orchestrator, params: SystemParams, phase: CyclePhase):
     m_air_chamber: s.chamber.m_air,
     m_vap_chamber: s.chamber.m_vap,
     m_liq_chamber: s.chamber.m_liq,
+    m_water_load: s.load.nodes.reduce((acc, n) => acc + n.m_water, 0),
     phase,
   };
 }
