@@ -1,7 +1,7 @@
 import type { ModbusBridge } from '../bridge/bridge.js';
 import { readCommands } from './command-reader.js';
 import { publishSensors } from './sensor-publisher.js';
-import { system_step, type SystemState, type SystemParams } from '@sim/physics';
+import { system_step, type SystemState, type SystemParams, type LoadState } from '@sim/physics';
 
 export interface OrchestratorOpts {
   bridge: ModbusBridge;
@@ -31,5 +31,9 @@ export class Orchestrator {
 
   getState(): SystemState {
     return this.state;
+  }
+
+  setLoadState(load: LoadState): void {
+    this.state = { ...this.state, load };
   }
 }

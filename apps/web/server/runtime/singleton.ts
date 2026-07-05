@@ -4,8 +4,17 @@ import { VirtualPLC } from '../virtual-plc/plc.js';
 import type { CycleConfig } from '../virtual-plc/cycle-config.js';
 import type { ModbusBridge } from '../bridge/bridge.js';
 import { SnapshotPublisher, buildSnapshot } from './snapshot.js';
-import type { SystemParams, SystemState } from '@sim/physics';
-import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+import type { SystemParams, SystemState, LoadItemConfig } from '@sim/physics';
+import {
+  C_to_K,
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  bar_to_Pa,
+  buildLoadState,
+} from '@sim/physics';
 import { readCommands } from '../orchestrator/command-reader.js';
 
 const TICK_DT_S = 0.05;
@@ -32,14 +41,7 @@ function defaultParams(): SystemParams {
       heater_power_W: 36000,
       relief_pressure_Pa: bar_to_Pa(4.54),
     },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -94,7 +96,7 @@ function preheatedInitial(p: SystemParams): SystemState {
     },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: T_amb, T_fabric: T_amb },
+    load: buildLoadState(undefined, C_to_K(22)),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -140,6 +142,11 @@ class RuntimeImpl implements Runtime {
     this.plc.start();
     this.cycle_running = true;
     this.cycle_started_at_s = this.orchestrator.getState().time_s;
+    // zod's optional() widens props to `| undefined`; exactOptionalPropertyTypes
+    // rejects that against LoadItemConfig. Runtime-identical — cast.
+    this.orchestrator.setLoadState(
+      buildLoadState(cycle.load as LoadItemConfig[] | undefined, C_to_K(22)),
+    );
   }
 
   stopCycle(): void {
@@ -154,18 +161,22 @@ class RuntimeImpl implements Runtime {
       await this.plc.tick(t);
     }
     await this.orchestrator.tick();
+    const phase = this.plc ? this.plc.getPhase() : 'IDLE';
     const { valves } = await readCommands(this.bridge);
     const snap = buildSnapshot({
       state: this.orchestrator.getState(),
       params: this.params,
       cycle_running: this.cycle_running,
-      cycle_phase: this.plc ? this.plc.getPhase() : 'IDLE',
+      cycle_phase: phase,
       cycle_elapsed_s: this.cycle_running
         ? this.orchestrator.getState().time_s - this.cycle_started_at_s
         : 0,
       valves: valves as Record<string, boolean>,
     });
     this.publisher.publish(snap);
+    // Freeze the cycle once it completes: otherwise cycle_running stays true and the
+    // integrator keeps running the COMPLETE plateau forever (elapsed + F0 runaway).
+    if (this.cycle_running && phase === 'COMPLETE') this.stopCycle();
   }
 }
 

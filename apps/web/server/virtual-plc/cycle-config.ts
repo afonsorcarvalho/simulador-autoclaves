@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+const LoadItemSchema = z.object({
+  name: z.string().optional(),
+  material: z.enum([
+    'STAINLESS_316',
+    'CARBON_STEEL',
+    'ALUMINUM',
+    'GLASS',
+    'POLYPROPYLENE',
+    'PEEK',
+    'SILICONE',
+    'COTTON_TEXTILE',
+  ]),
+  mass_kg: z.number().positive(),
+  initial_T_C: z.number().optional(),
+  witness: z.boolean().optional(),
+});
+
 export const CycleConfigSchema = z.object({
   name: z.string(),
   sterilization_T_C: z.number(),
@@ -11,5 +28,6 @@ export const CycleConfigSchema = z.object({
   preheat_duration_s: z.number().nonnegative(),
   dry_duration_s: z.number().nonnegative(),
   f0_target_min: z.number().nonnegative(),
+  load: z.array(LoadItemSchema).optional(),
 });
 export type CycleConfig = z.infer<typeof CycleConfigSchema>;
