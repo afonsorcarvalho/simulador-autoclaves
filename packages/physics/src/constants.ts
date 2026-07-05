@@ -7,6 +7,12 @@ export const CV_AIR = 718; // J/(kg·K)
 export const CP_VAP = 1996; // J/(kg·K) — superheated steam ~100-200°C average
 export const CV_VAP = 1410; // J/(kg·K)
 export const CP_LIQ = 4186; // J/(kg·K) — liquid water
+/** Latent-heat offset for vapor internal energy (J/kg), on the common reference
+ *  (liquid water, u=0 at 273.15 K). Chosen so the effective condensation latent
+ *  L_eff(T) = U_FG0 − (CP_LIQ − CV_VAP)·T matches h_vap_water(T) near 121 °C (and,
+ *  because CP_LIQ−CV_VAP ≈ the slope of h_vap_water, across the whole range).
+ *  u_vap = CV_VAP·T + U_FG0 (storage); h_vap = CP_VAP·T + U_FG0 (transport). */
+export const U_FG0 = 3.29301e6; // J/kg
 export const GAMMA_AIR = 1.4;
 export const GAMMA_VAP = 1.33;
 
