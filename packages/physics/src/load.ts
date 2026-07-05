@@ -1,6 +1,6 @@
 // packages/physics/src/load.ts
 import { MATERIALS, estimateArea, type MaterialName } from './materials.js';
-import { h_vap_water } from './saturation.js';
+import { h_vap_water, T_sat_water } from './saturation.js';
 import { CP_WATER, SIGMA_SB, C_to_K } from './constants.js';
 
 export interface LoadNode {
@@ -18,6 +18,9 @@ export interface LoadState {
 
 export interface LoadParams {
   h0_conv: number; // W/(m²·K) base @ρ_ref
+  // Reservados: coeficientes de taxa de condensação/evaporação. O modelo de pinning de
+  // saturação é quase-estático (dirigido por energia, não por Δp), por isso não os usa na v1.
+  // Mantidos p/ compatibilidade de config e para um futuro modelo de taxa finita.
   k_cond: number; // kg/(s·m²·Pa)
   k_ev: number; // kg/(s·m²·Pa)
 }
@@ -30,6 +33,7 @@ export interface LoadEnv {
   p_sat_at: (T: number) => number; // Pa
   p_vap_chamber: number; // Pa
   chamber_has_vapor: boolean;
+  chamber_vapor_kg: number; // kg de vapor disponível na câmara (limite p/ condensação, conservação)
 }
 
 export interface LoadStepResult {
@@ -55,33 +59,41 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
     // Radiação da jaqueta (domina no vácuo)
     const Q_rad = m.emissivity * SIGMA_SB * A * (e.T_jacket ** 4 - node.T ** 4); // W
 
-    // Mudança de fase dirigida por pressão (simétrica): Δp = p_sat(T_nó) − p_vap_câmara
-    const dp = e.p_sat_at(node.T) - e.p_vap_chamber;
-    let dWater = 0;
-    if (dp > 0 && node.m_water > 0) {
-      // Evaporação/flash: água sai do nó
-      const m_ev = Math.min(p.k_ev * A * dp * dt, node.m_water);
-      dWater = -m_ev;
-    } else if (dp < 0 && e.chamber_has_vapor) {
-      // Condensação: vapor deposita-se no nó, até à capacidade do material
-      const cap = m.waterCapacity_kg_per_kg * node.mass_kg;
-      const m_cond = Math.min(p.k_cond * A * -dp * dt, Math.max(0, cap - node.m_water));
-      dWater = m_cond;
-    }
-    vaporToChamber += -dWater; // condensação (dWater>0) retira vapor da câmara
-
-    // Calor latente: condensação (dWater>0) aquece o nó; evaporação (dWater<0) arrefece
-    // ponytail: v1 omits sensible enthalpy of incoming condensing vapor (cp_vap·(T_gas−T_node)); latent dominates. Add if come-up F0 fidelity needs it.
-    const Q_lat_energy = dWater * h_vap_water(node.T); // J
-
-    // Massa térmica (usa água pré-passo)
+    // Temperatura provisória (só sensível: convecção + radiação).
     const C = Math.max(node.mass_kg * m.cp + node.m_water * CP_WATER, 1e-6);
-    const dU = (Q_conv + Q_rad) * dt + Q_lat_energy;
-    const T_new = node.T + dU / C;
+    const T_prov = node.T + ((Q_conv + Q_rad) * dt) / C;
+
+    // Pinning de saturação bifásico: uma superfície com água livre é uma interface de
+    // ebulição/condensação presa a T_sat(P_câmara). Excedente de calor evapora água (flash) em
+    // vez de superaquecer; défice abaixo de T_sat num nó molhado/exposto a vapor condensa para
+    // aquecer. Quase-estático (NÃO limitado por Δp): no patamar HOLD Δp≈0 mas o excedente de
+    // radiação tem de evaporar na mesma — o pin é dirigido pelo desequilíbrio de energia,
+    // limitado pela massa de água (flash) e pela capacidade + vapor disponível (condensação).
+    const hv = h_vap_water(node.T);
+    const T_boil = T_sat_water(e.p_vap_chamber);
+    const cap = m.waterCapacity_kg_per_kg * node.mass_kg;
+    let dWater = 0;
+    let T_final = T_prov;
+    if (node.m_water > 0 && T_prov > T_boil) {
+      // Flash: evapora para puxar T até à ebulição, limitado pela água disponível.
+      const surplus = C * (T_prov - T_boil); // J acima da ebulição
+      const evap = Math.min(surplus / hv, node.m_water);
+      dWater = -evap;
+      T_final = T_prov - (evap * hv) / C; // chega a T_boil se houver água; senão fica acima (secou)
+    } else if (T_prov < T_boil && e.chamber_vapor_kg > 0) {
+      // Condensação: deposita vapor para puxar T até à ebulição, limitado pela capacidade do
+      // material E pelo vapor disponível na câmara (50% p/ não esvaziar num passo — conservação).
+      const deficit = C * (T_boil - T_prov); // J abaixo da ebulição
+      const room = Math.max(0, cap - node.m_water);
+      const cond = Math.min(deficit / hv, room, 0.5 * e.chamber_vapor_kg);
+      dWater = cond;
+      T_final = T_prov + (cond * hv) / C; // chega a T_boil se a capacidade/vapor permitir
+    }
+    vaporToChamber += -dWater; // condensação (dWater>0) retira vapor da câmara; flash (<0) adiciona
 
     Q_conv_total += Q_conv;
     Q_rad_total += Q_rad;
-    return { ...node, T: T_new, m_water: node.m_water + dWater };
+    return { ...node, T: T_final, m_water: node.m_water + dWater };
   });
 
   return {

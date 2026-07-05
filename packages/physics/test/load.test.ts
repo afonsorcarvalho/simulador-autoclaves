@@ -1,7 +1,7 @@
 // packages/physics/test/load.test.ts
 import { describe, it, expect } from 'vitest';
 import { load_step, buildLoadState, type LoadState, type LoadParams, type LoadEnv } from '../src/load.js';
-import { C_to_K } from '../src/constants.js';
+import { C_to_K, K_to_C } from '../src/constants.js';
 import { p_sat_water } from '../src/saturation.js';
 
 const P: LoadParams = { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 };
@@ -10,7 +10,7 @@ function envAt(opts: Partial<LoadEnv>): LoadEnv {
   return {
     T_gas: C_to_K(134), rho_gas: 0.6, rho_gas_atm: 0.6,
     T_jacket: C_to_K(134), p_sat_at: p_sat_water, p_vap_chamber: p_sat_water(C_to_K(134)),
-    chamber_has_vapor: true, ...opts,
+    chamber_has_vapor: true, chamber_vapor_kg: 0.1, ...opts,
   };
 }
 function oneNode(over: Partial<LoadState['nodes'][0]> = {}): LoadState {
@@ -56,6 +56,24 @@ describe('load_step', () => {
     const r = load_step(s, P, e, 1);
     const dWater = r.next.nodes[0]!.m_water - s.nodes[0]!.m_water;
     expect(dWater).toBeCloseTo(-r.vaporToChamber_kg, 12);
+  });
+
+  it('saturation pinning: a WET node under radiation surplus stays at T_sat (no superheat)', () => {
+    // Cotton witness at 134 °C, wet, chamber saturated at 3.04 bar (T_sat=134), jacket hotter (140).
+    const s = { nodes: [{ name: 'w', material: 'COTTON_TEXTILE' as const, mass_kg: 5, T: C_to_K(134), m_water: 0.3 }] };
+    const e = envAt({ T_jacket: C_to_K(140), p_vap_chamber: p_sat_water(C_to_K(134)), chamber_vapor_kg: 0.24 });
+    let st = s;
+    for (let i = 0; i < 100; i++) st = load_step(st, P, e, 1).next;
+    expect(K_to_C(st.nodes[0]!.T)).toBeCloseTo(134, 1); // pinned, not creeping to jacket temp
+    expect(st.nodes[0]!.m_water).toBeLessThan(0.3); // radiation surplus flashed some water
+    expect(st.nodes[0]!.m_water).toBeGreaterThan(0); // still wet after 100 s
+  });
+
+  it('saturation pinning: a DRY node above T_sat is NOT pinned — radiation superheats it', () => {
+    const s = oneNode({ material: 'COTTON_TEXTILE', mass_kg: 5, T: C_to_K(134), m_water: 0 });
+    const e = envAt({ T_jacket: C_to_K(140), p_vap_chamber: p_sat_water(C_to_K(134)) });
+    const r = load_step(s, P, e, 10);
+    expect(r.next.nodes[0]!.T).toBeGreaterThan(C_to_K(134)); // dry → free to rise above sat
   });
 });
 

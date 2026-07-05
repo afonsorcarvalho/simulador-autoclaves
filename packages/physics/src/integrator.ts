@@ -218,6 +218,7 @@ export function system_step(
       p_sat_at: p_sat_water,
       p_vap_chamber,
       chamber_has_vapor: state.chamber.m_vap > 0,
+      chamber_vapor_kg: state.chamber.m_vap,
     },
     dt,
   );
