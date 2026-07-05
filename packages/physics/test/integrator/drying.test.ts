@@ -34,6 +34,41 @@ function wetHotState(_p: SystemParams): SystemState {
   };
 }
 
+// Isolated chamber (no valves) + wet hot load undersaturated so the only thing that can move
+// chamber vapor is the load↔chamber water exchange. Water must be conserved exactly.
+function conservationParams(): SystemParams {
+  const p = params();
+  p.valves = {}; // no valves → load↔chamber exchange is the only chamber-vapor path
+  return p;
+}
+
+function undersaturatedWetHotState(): SystemState {
+  const T = C_to_K(134);
+  const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], T);
+  load.nodes[0]!.m_water = 0.2; // carga encharcada, nó quente → evapora
+  return {
+    chamber: { m_air: 1e-6, m_vap: 0.05, m_liq: 0, T, T_wall: T }, // undersaturated: p_sat(134°C)≈3e5, p_vap≈0.6e5
+    jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
+    generator: null,
+    load,
+    f0_minutes: 0,
+    time_s: 0,
+  };
+}
+
+describe('load↔chamber water conservation', () => {
+  it('conserves water across one system_step at shipped dt (rate vs mass)', () => {
+    const p = conservationParams();
+    const s = undersaturatedWetHotState();
+    const next = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    // no valves → only load↔chamber water exchange moves chamber vapor
+    const before = s.load.nodes[0]!.m_water + s.chamber.m_vap;
+    const after = next.load.nodes[0]!.m_water + next.chamber.m_vap;
+    expect(next.load.nodes[0]!.m_water).toBeLessThan(0.2); // evaporou algo (teste é significativo)
+    expect(after).toBeCloseTo(before, 8); // água conservada carga+câmara
+  });
+});
+
 describe('vacuum drying', () => {
   it('cools the witness by evaporative flash as the chamber is pumped down', () => {
     const p = params();

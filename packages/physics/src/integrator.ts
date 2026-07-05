@@ -203,18 +203,6 @@ export function system_step(
     // Flow to atmosphere/vacuum leaves the system (already subtracted from source)
   }
 
-  // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
-  // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
-  // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
-  // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.33).
-  for (const key of ['chamber', 'jacket'] as const) {
-    const src = state[key] as ChamberState;
-    const max_air_out = src.m_air / (GAMMA_AIR * dt);
-    const max_vap_out = src.m_vap / (GAMMA_VAP * dt);
-    if (acc[key].air_out > max_air_out) acc[key].air_out = max_air_out;
-    if (acc[key].vap_out > max_vap_out) acc[key].vap_out = max_vap_out;
-  }
-
   // Load step: chamber gas ↔ load thermal exchange
   // Densidade do gás da câmara p/ escalar convecção (∝ ρ)
   const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
@@ -235,13 +223,29 @@ export function system_step(
   );
   const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
 
-  // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai)
-  if (loadResult.vaporToChamber_kg > 0) {
-    acc.chamber.vap_in += loadResult.vaporToChamber_kg;
-    acc.chamber.inflow_T_weighted += loadResult.vaporToChamber_kg * state.chamber.T;
-    acc.chamber.inflow_T_mass += loadResult.vaporToChamber_kg;
-  } else if (loadResult.vaporToChamber_kg < 0) {
-    acc.chamber.vap_out += -loadResult.vaporToChamber_kg;
+  // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai).
+  // vaporToChamber_kg é uma MASSA (já ·dt); os acumuladores são TAXAS (kg/s), pois
+  // chamber_step volta a multiplicar por dt. Converter na fronteira dividindo por dt.
+  const loadVapRate = loadResult.vaporToChamber_kg / dt; // kg → kg/s nesta fronteira
+  if (loadVapRate > 0) {
+    acc.chamber.vap_in += loadVapRate;
+    acc.chamber.inflow_T_weighted += loadVapRate * state.chamber.T;
+    acc.chamber.inflow_T_mass += loadVapRate;
+  } else if (loadVapRate < 0) {
+    acc.chamber.vap_out += -loadVapRate;
+  }
+
+  // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
+  // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
+  // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
+  // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.33).
+  // Runs after the load injection so the load's condensation outflow is included in the cap.
+  for (const key of ['chamber', 'jacket'] as const) {
+    const src = state[key] as ChamberState;
+    const max_air_out = src.m_air / (GAMMA_AIR * dt);
+    const max_vap_out = src.m_vap / (GAMMA_VAP * dt);
+    if (acc[key].air_out > max_air_out) acc[key].air_out = max_air_out;
+    if (acc[key].vap_out > max_vap_out) acc[key].vap_out = max_vap_out;
   }
 
   // Jacket↔chamber wall conduction coupling
