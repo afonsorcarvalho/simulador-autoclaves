@@ -1,6 +1,6 @@
 // packages/physics/test/load.test.ts
 import { describe, it, expect } from 'vitest';
-import { load_step, type LoadState, type LoadParams, type LoadEnv } from '../src/load.js';
+import { load_step, buildLoadState, type LoadState, type LoadParams, type LoadEnv } from '../src/load.js';
 import { C_to_K } from '../src/constants.js';
 import { p_sat_water } from '../src/saturation.js';
 
@@ -56,5 +56,25 @@ describe('load_step', () => {
     const r = load_step(s, P, e, 1);
     const dWater = r.next.nodes[0]!.m_water - s.nodes[0]!.m_water;
     expect(dWater).toBeCloseTo(-r.vaporToChamber_kg, 12);
+  });
+});
+
+describe('buildLoadState', () => {
+  it('uses default load (steel + textile witness) when items omitted', () => {
+    const st = buildLoadState(undefined, C_to_K(22));
+    expect(st.nodes).toHaveLength(2);
+    expect(st.nodes.some((n) => n.isWitness)).toBe(true);
+    expect(st.nodes[0]!.material).toBe('STAINLESS_316');
+  });
+  it('injects a witness node when none is flagged', () => {
+    const st = buildLoadState([{ material: 'ALUMINUM', mass_kg: 3 }], C_to_K(22));
+    expect(st.nodes).toHaveLength(2);
+    expect(st.nodes.filter((n) => n.isWitness)).toHaveLength(1);
+  });
+  it('honors an explicit witness and initial temperature', () => {
+    const st = buildLoadState([{ material: 'GLASS', mass_kg: 1, initial_T_C: 30, witness: true }], C_to_K(22));
+    expect(st.nodes).toHaveLength(1);
+    expect(st.nodes[0]!.isWitness).toBe(true);
+    expect(st.nodes[0]!.T).toBeCloseTo(C_to_K(30), 6);
   });
 });
