@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
 import { generator_pressure } from '../../src/generator.js';
+import { buildLoadState } from '../../src/load.js';
 import { p_sat_water } from '../../src/saturation.js';
 import {
   GAMMA_AIR,
@@ -33,14 +34,7 @@ function makeParams134(): SystemParams {
     chamber: { V: CHAMBER_V, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000, relief_pressure_Pa: 6e5 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 500,
-      h_metal_fabric: 30,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -76,14 +70,7 @@ function makeParams121(): SystemParams {
     chamber: { V: CHAMBER_V, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000, relief_pressure_Pa: 6e5 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 500,
-      h_metal_fabric: 30,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -115,7 +102,7 @@ function makeInitialState(p: SystemParams): SystemState {
     chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
     jacket: { m_air: (P_ATM * p.jacket.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
     generator: { m_water_liq: 30, m_water_vap: 0, T: C_to_K(22) },
-    load: { T_metal: T, T_fabric: T },
+    load: buildLoadState(undefined, T),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -133,7 +120,7 @@ interface BoundViolation {
 /** Asserts all hard bounds at every step. Returns list of violations (empty = pass). */
 function checkBounds(s: SystemState, p: SystemParams, violations: BoundViolation[]): void {
   const T_ch_C = K_to_C(s.chamber.T);
-  const T_test_C = K_to_C(s.load.T_fabric);
+  const T_test_C = K_to_C((s.load.nodes.find((n) => n.isWitness) ?? s.load.nodes[0])!.T);
   const P_gen_bar =
     s.generator && p.generator ? Pa_to_bar(generator_pressure(s.generator, p.generator)) : 0;
   const m_vap = s.chamber.m_vap;
@@ -299,14 +286,7 @@ describe('Numerical hardness — bounded behavior throughout', () => {
       chamber: { V: CHAMBER_V, allowLiquid: true },
       jacket: { V: 0.025, allowLiquid: false },
       generator: null,
-      load: {
-        m_metal: 20,
-        cp_metal: 500,
-        m_fabric: 5,
-        cp_fabric: 1500,
-        h_gas_metal: 50, // vacuum significantly reduces convective transfer
-        h_metal_fabric: 30,
-      },
+      load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
       valves: {
         V_VAC: {
           from: 'chamber',
@@ -325,7 +305,7 @@ describe('Numerical hardness — bounded behavior throughout', () => {
       chamber: { m_air: 0.01, m_vap: 0.05, m_liq: 0.1, T: C_to_K(134) },
       jacket: { m_air: 0, m_vap: 0.05, m_liq: 0, T: C_to_K(135) },
       generator: null,
-      load: { T_metal: C_to_K(134), T_fabric: C_to_K(134) },
+      load: buildLoadState(undefined, C_to_K(134)),
       f0_minutes: 100,
       time_s: 0,
     };

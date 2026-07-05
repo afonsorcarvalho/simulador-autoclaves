@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
+import { buildLoadState } from '../../src/load.js';
 import {
   GAMMA_AIR,
   GAMMA_VAP,
@@ -18,14 +19,7 @@ function makeParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 500,
-      h_metal_fabric: 30,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -58,7 +52,7 @@ function makeInitialState(p: SystemParams): SystemState {
     chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
     jacket: { m_air: (P_ATM * p.jacket.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T },
     generator: { m_water_liq: 30, m_water_vap: 0, T: C_to_K(22) },
-    load: { T_metal: T, T_fabric: T },
+    load: buildLoadState(undefined, T),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -112,7 +106,7 @@ describe('Sterilization 134°C pre-vacuum cycle (headline)', () => {
         { heater_gen: true, pump_vac: false },
         dt,
       );
-      if (K_to_C(s.load.T_fabric) >= 134) break;
+      if (K_to_C((s.load.nodes.find((n) => n.isWitness) ?? s.load.nodes[0])!.T) >= 134) break;
     }
 
     // Hold 7 min
@@ -127,6 +121,8 @@ describe('Sterilization 134°C pre-vacuum cycle (headline)', () => {
     }
 
     expect(s.f0_minutes).toBeGreaterThanOrEqual(100);
-    expect(K_to_C(s.load.T_fabric)).toBeGreaterThanOrEqual(134);
+    expect(
+      K_to_C((s.load.nodes.find((n) => n.isWitness) ?? s.load.nodes[0])!.T),
+    ).toBeGreaterThanOrEqual(134);
   }, 180000);
 });
