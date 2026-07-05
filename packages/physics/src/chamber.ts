@@ -160,6 +160,9 @@ export function chamber_step(
   }
 
   // External heat straight into the wall (jacket conduction) — added after gas↔wall relax.
+  // ponytail: Q_wall_external is dropped if wall_C==0 (the jacket still loses it upstream →
+  // energy leak). Fine: two-phase chambers always define a wall. If a wall-less chamber is
+  // ever coupled again, route this flux back to the gas (Q_external) instead.
   const Q_wall_ext = f.Q_wall_external ?? 0;
   if (wall_C > 0 && Q_wall_ext !== 0) {
     T_wall = (T_wall ?? s.T_wall ?? s.T) + (Q_wall_ext * dt) / wall_C;
