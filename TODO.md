@@ -2,7 +2,7 @@
 
 ## Em curso
 
-(vazio — escolher próximo sub-projeto)
+- SP-cal (calibração da secagem) — **come-up wetting**: o testemunho entra seco no HOLD, por isso a radiação sobreaquece-o a ~137 °C e a secagem quase não arrefece. O pinning está correto (segura 134 °C quando molhado — provado). Falta o come-up depositar/reter água no testemunho. Técnico: (a) condensação multi-nó partilha `chamber_vapor_kg` sem decrementar entre nós → possível sub-molhagem/over-draw; orçamentar o vapor da câmara pelos nós; (b) afinar condensação no aquecimento/pressurize; (c) possivelmente limitar radiação. Doc: [modelo-secagem-vacuo.md], canvas de calibração. Ideal com trace real de hardware (não disponível → afinar por plausibilidade/literatura).
 
 ## Pendente
 
@@ -24,6 +24,8 @@
 
 ## Feito
 
+- 2026-07-05 — Modelo de carga N-nós + secagem a vácuo (packages/physics: `materials.ts` registry, `load.ts` N-nós c/ condensação/flash/radiação/convecção∝ρ, integração + conservação água carga↔câmara + F0 no nó testemunho, config `load` no YAML de ciclo, pinning de saturação bifásico. Bug P–T da câmara corrigido: testemunho descola. 91 testes physics + 71 web. Docs: teoria + spec + plano em docs/superpowers/. Falta calibrar come-up wetting → SP-cal em curso)
+- 2026-07-05 — Live dashboard: gráfico do ciclo inteiro (eixo HH:MM:SS) + backlog SSE server-side (sobrevive a navegação/reload) + auto-stop do ciclo em COMPLETE
 - 2026-05-26 — Sub-projeto 4 — Dashboard MVP (apps/web: Tailwind + Next.js App Router, snapshot publisher + singleton runtime + real-time scheduler, SSE stream, useSnapshot hook, live page c/ Recharts pressure/temperature/F0/valves, virtual PLC manual valve panel, home cycle start/stop)
 - 2026-05-26 — Sub-projeto 3 — Orchestrator + virtual bridge + scenario runner (apps/web: ModbusBridge interface, VirtualEsp32Bridge in-memory, RegisterAccess typed wrapper, Orchestrator tick loop, VirtualPLC state machine + valve commander, scenario runner driving closed-loop 134°C cycle to F0 ≥ 100 entirely virtual. 47 vitest tests)
 - 2026-05-25 — Sub-projeto 2.5 — Physics hardening + jacket bang-bang + condensation latent heat fix
