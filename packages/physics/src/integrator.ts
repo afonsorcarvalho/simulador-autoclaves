@@ -14,8 +14,9 @@ import {
   type GeneratorParams,
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
+import { p_sat_water } from './saturation.js';
 import { choked_flow, type ValveParams } from './valve.js';
-import { P_ATM, GAMMA_AIR, GAMMA_VAP } from './constants.js';
+import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF } from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
@@ -215,8 +216,33 @@ export function system_step(
   }
 
   // Load step: chamber gas ↔ load thermal exchange
-  const loadResult = load_step(state.load, params.load, state.chamber.T, dt);
-  const Q_load = loadResult.Q_from_gas; // positive = removed from gas, goes to load
+  // Densidade do gás da câmara p/ escalar convecção (∝ ρ)
+  const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
+  const p_vap_chamber = chamber_pressure(state.chamber, params.chamber).p_vap;
+  const loadResult = load_step(
+    state.load,
+    params.load,
+    {
+      T_gas: state.chamber.T,
+      rho_gas: rho_gas_chamber,
+      rho_gas_atm: RHO_GAS_ATM_REF,
+      T_jacket: state.jacket.T,
+      p_sat_at: p_sat_water,
+      p_vap_chamber,
+      chamber_has_vapor: state.chamber.m_vap > 0,
+    },
+    dt,
+  );
+  const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
+
+  // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai)
+  if (loadResult.vaporToChamber_kg > 0) {
+    acc.chamber.vap_in += loadResult.vaporToChamber_kg;
+    acc.chamber.inflow_T_weighted += loadResult.vaporToChamber_kg * state.chamber.T;
+    acc.chamber.inflow_T_mass += loadResult.vaporToChamber_kg;
+  } else if (loadResult.vaporToChamber_kg < 0) {
+    acc.chamber.vap_out += -loadResult.vaporToChamber_kg;
+  }
 
   // Jacket↔chamber wall conduction coupling
   const h_jc = params.jacket_chamber_h_W_per_K ?? 0;
@@ -229,15 +255,16 @@ export function system_step(
     inflow_T: inflowT(acc.chamber, state.chamber.T),
     outflow: speciesOut(acc.chamber),
     Q_external: -Q_load + Q_jacket_to_chamber, // gains from jacket, loses to load
+    wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };
   const nextChamber = chamber_step(state.chamber, params.chamber, chamberFluxes, dt);
 
-  // Jacket step (loses heat to chamber via wall)
+  // Jacket step (loses heat to chamber via wall; radia p/ a carga)
   const jacketFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.jacket),
     inflow_T: inflowT(acc.jacket, state.jacket.T),
     outflow: speciesOut(acc.jacket),
-    Q_external: -Q_jacket_to_chamber, // loses to chamber
+    Q_external: -Q_jacket_to_chamber - loadResult.Q_rad_from_jacket, // loses to chamber + radia p/ carga
   };
   const nextJacket = chamber_step(state.jacket, params.jacket, jacketFluxes, dt);
 
@@ -253,10 +280,11 @@ export function system_step(
     );
   }
 
-  // F0 accumulator — uses T_fabric (witness sensor) from old load state
+  // F0 accumulator — referência é o nó testemunho (witness)
+  const witness = loadResult.next.nodes.find((n) => n.isWitness) ?? loadResult.next.nodes[0];
   const f0 = new F0Accumulator();
   f0.value_minutes = state.f0_minutes;
-  f0.step(state.load.T_fabric, dt);
+  if (witness) f0.step(witness.T, dt);
 
   return {
     chamber: nextChamber,

@@ -71,6 +71,7 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
     vaporToChamber += -dWater; // condensação (dWater>0) retira vapor da câmara
 
     // Calor latente: condensação (dWater>0) aquece o nó; evaporação (dWater<0) arrefece
+    // ponytail: v1 omits sensible enthalpy of incoming condensing vapor (cp_vap·(T_gas−T_node)); latent dominates. Add if come-up F0 fidelity needs it.
     const Q_lat_energy = dWater * h_vap_water(node.T); // J
 
     // Massa térmica (usa água pré-passo)
