@@ -255,3 +255,16 @@ describe('chamber_step — wall thermal mass', () => {
     expect(next.T_wall).toBeUndefined();
   });
 });
+
+describe('wall coupling scales with gas density', () => {
+  const p: ChamberParams = { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
+  const base: ChamberState = { m_air: 1e-5, m_vap: 1e-4, m_liq: 0, T: C_to_K(60), T_wall: C_to_K(140) };
+  const noFlow: ChamberFluxes = { inflow: { air: 0, vap: 0, liq: 0 }, inflow_T: base.T, outflow: { air: 0, vap: 0, liq: 0 }, Q_external: 0 };
+
+  it('with scale≈0 the near-vacuum gas barely tracks the hot wall', () => {
+    const full = chamber_step(base, p, { ...noFlow, wall_coupling_scale: 1 }, 0.05);
+    const vac = chamber_step(base, p, { ...noFlow, wall_coupling_scale: 1e-4 }, 0.05);
+    // scaled-down coupling ⇒ smaller rise toward the 140 °C wall
+    expect(vac.T - base.T).toBeLessThan(full.T - base.T);
+  });
+});

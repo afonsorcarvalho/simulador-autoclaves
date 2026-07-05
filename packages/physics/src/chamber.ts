@@ -50,6 +50,8 @@ export interface ChamberFluxes {
   inflow_T: number; // K
   outflow: SpeciesFlow;
   Q_external: number; // W (positive = into chamber)
+  /** Escala do acoplamento convectivo parede↔gás (∝ densidade). Default 1 (back-compat). */
+  wall_coupling_scale?: number;
 }
 
 // Hard temperature bounds for the chamber/jacket control volumes.
@@ -128,7 +130,7 @@ export function chamber_step(
   // If wall_mass_kg is zero or undefined the model is bypassed (back-compat).
   const wall_mass = p.wall_mass_kg ?? 0;
   const wall_cp = p.wall_cp_J_per_kg_K ?? 500;
-  const wall_h = p.wall_h_W_per_K ?? 200;
+  const wall_h = (p.wall_h_W_per_K ?? 200) * (f.wall_coupling_scale ?? 1);
   const wall_C = wall_mass * wall_cp; // J/K
   let T_wall: number | undefined;
 
