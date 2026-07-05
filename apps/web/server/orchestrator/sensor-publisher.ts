@@ -28,7 +28,10 @@ export async function publishSensors(
 
   // Temperatures
   await access.setAnalog('T_CHAMBER_INT', K_to_C(state.chamber.T));
-  await access.setAnalog('T_TESTEMUNHO', K_to_C(state.load.T_fabric));
+  await access.setAnalog(
+    'T_TESTEMUNHO',
+    K_to_C((state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T),
+  );
   await access.setAnalog('T_CHAMBER_EXT', K_to_C(state.jacket.T));
   await access.setAnalog('T_GENERATOR', state.generator ? K_to_C(state.generator.T) : 0);
 

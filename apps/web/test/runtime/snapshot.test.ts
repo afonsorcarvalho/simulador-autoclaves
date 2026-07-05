@@ -2,14 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { buildSnapshot, SnapshotPublisher } from '../../server/runtime/snapshot.js';
 import type { SystemState, SystemParams } from '@sim/physics';
 import type { Snapshot } from '../../server/runtime/snapshot.js';
-import { C_to_K } from '@sim/physics';
+import { C_to_K, buildLoadState } from '@sim/physics';
 
 function makeState(): SystemState {
   return {
     chamber: { m_air: 0.18, m_vap: 0.05, m_liq: 0.02, T: C_to_K(120), T_wall: C_to_K(125) },
     jacket: { m_air: 0, m_vap: 0.05, m_liq: 0, T: C_to_K(138), T_wall: C_to_K(138) },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: C_to_K(118), T_fabric: C_to_K(115) },
+    load: buildLoadState(
+      [{ material: 'COTTON_TEXTILE', mass_kg: 5, initial_T_C: 115, witness: true }],
+      C_to_K(115),
+    ),
     f0_minutes: 30,
     time_s: 450,
   };
@@ -20,14 +23,7 @@ function makeParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
   };
@@ -94,5 +90,33 @@ describe('SnapshotPublisher', () => {
     unsub();
     pub.publish(dummy(2));
     expect(received).toEqual([1]);
+  });
+
+  function running(elapsed: number): Snapshot {
+    return { ...dummy(elapsed), cycle_running: true, cycle_phase: 'HOLD', cycle_elapsed_s: elapsed };
+  }
+
+  it('history is empty while idle', () => {
+    const pub = new SnapshotPublisher();
+    pub.publish(dummy(0));
+    pub.publish(dummy(1));
+    expect(pub.history.length).toBe(0);
+  });
+
+  it('history keeps one point per elapsed second while running (10 Hz in → 1 Hz stored)', () => {
+    const pub = new SnapshotPublisher();
+    // 0.0, 0.1, ... 2.0 s → seconds 0,1,2 recorded
+    for (let i = 0; i <= 20; i++) pub.publish(running(i * 0.1));
+    expect(pub.history.map((s) => s.cycle_elapsed_s)).toEqual([0, 1, 2]);
+  });
+
+  it('history clears on a new cycle (rising edge of cycle_running)', () => {
+    const pub = new SnapshotPublisher();
+    pub.publish(running(0));
+    pub.publish(running(1));
+    pub.publish(dummy(2)); // cycle stops (running=false) — history retained
+    expect(pub.history.length).toBe(2);
+    pub.publish(running(0)); // new cycle starts → cleared, then records t=0
+    expect(pub.history.map((s) => s.cycle_elapsed_s)).toEqual([0]);
   });
 });

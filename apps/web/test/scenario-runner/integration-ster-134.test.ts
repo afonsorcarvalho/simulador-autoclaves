@@ -7,7 +7,16 @@ import { runScenario } from '../../server/scenario-runner/runner.js';
 import { CycleConfigSchema } from '../../server/virtual-plc/cycle-config.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemParams, SystemState } from '@sim/physics';
-import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+import {
+  C_to_K,
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  bar_to_Pa,
+  buildLoadState,
+} from '@sim/physics';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,14 +39,7 @@ function makeParams(): SystemParams {
       wall_h_W_per_K: 100,
     },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -88,7 +90,7 @@ function preheatedInitial(p: SystemParams): SystemState {
     },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: T_amb, T_fabric: T_amb },
+    load: buildLoadState(undefined, T_amb),
     f0_minutes: 0,
     time_s: 0,
   };

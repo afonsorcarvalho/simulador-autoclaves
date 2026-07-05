@@ -61,7 +61,7 @@ function sampleRow(orch: Orchestrator, params: SystemParams, phase: CyclePhase):
     P_jacket_bar: Pa_to_bar(pj.p_total),
     P_gen_bar: Pa_to_bar(pg),
     T_chamber_C: K_to_C(s.chamber.T),
-    T_test_C: K_to_C(s.load.T_fabric),
+    T_test_C: K_to_C((s.load.nodes.find((n) => n.isWitness) ?? s.load.nodes[0])!.T),
     T_jacket_C: K_to_C(s.jacket.T),
     T_gen_C: s.generator ? K_to_C(s.generator.T) : 0,
     F0_min: s.f0_minutes,

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
 import { buildLoadState } from '../../src/load.js';
 import { p_sat_water } from '../../src/saturation.js';
-import { C_to_K, R_AIR, R_VAP, P_ATM, GAMMA_VAP, GAMMA_AIR } from '../../src/constants.js';
+import { C_to_K, R_AIR, R_VAP, GAMMA_AIR } from '../../src/constants.js';
 
 function params(): SystemParams {
   return {
@@ -20,7 +20,7 @@ function params(): SystemParams {
 }
 
 // câmara: vapor saturado quente + carga húmida quente; jaqueta quente; a puxar vácuo
-function wetHotState(p: SystemParams): SystemState {
+function wetHotState(_p: SystemParams): SystemState {
   const T = C_to_K(134);
   const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], T);
   load.nodes[0]!.m_water = 0.2; // carga encharcada
