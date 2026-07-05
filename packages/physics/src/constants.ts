@@ -29,3 +29,17 @@ export const C_to_K = (c: number): number => c + KELVIN_OFFSET;
 export const K_to_C = (k: number): number => k - KELVIN_OFFSET;
 export const bar_to_Pa = (b: number): number => b * 1e5;
 export const Pa_to_bar = (p: number): number => p / 1e5;
+
+/** Constante de Stefan-Boltzmann (W/(m²·K⁴)). */
+export const SIGMA_SB = 5.67e-8;
+/** Calor específico da água líquida (J/(kg·K)). */
+export const CP_WATER = 4186;
+/** Densidade de referência do gás para escalar a convecção (kg/m³).
+ *  Vapor saturado ~1 bar/100 °C ≈ 0.6 kg/m³. Convecção efetiva = h0·(ρ_gas/este valor). */
+export const RHO_GAS_ATM_REF = 0.6;
+/** Convecção base gás↔carga à densidade de referência (W/(m²·K)). Knob calibrável. */
+export const H0_CONV_DEFAULT = 30;
+/** Coef. de condensação (kg/(s·m²·Pa)). Knob calibrável. */
+export const K_COND_DEFAULT = 2e-6;
+/** Coef. de evaporação/flash (kg/(s·m²·Pa)). Knob calibrável. */
+export const K_EV_DEFAULT = 2e-6;
