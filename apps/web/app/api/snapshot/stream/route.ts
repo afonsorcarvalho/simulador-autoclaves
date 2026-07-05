@@ -14,8 +14,14 @@ export async function GET(): Promise<Response> {
     start(controller) {
       const enc = new TextEncoder();
 
-      // Send latest immediately if available
-      if (runtime.publisher.latest) {
+      // Replay the running cycle's history so a client opening (or re-opening) /live
+      // sees the whole cycle, not just from now. Falls back to latest when idle.
+      const backlog = runtime.publisher.history;
+      if (backlog.length > 0) {
+        for (const snap of backlog) {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(snap)}\n\n`));
+        }
+      } else if (runtime.publisher.latest) {
         controller.enqueue(enc.encode(`data: ${JSON.stringify(runtime.publisher.latest)}\n\n`));
       }
 

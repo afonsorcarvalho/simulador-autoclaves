@@ -84,6 +84,27 @@ describe('getRuntime', () => {
     expect(r.plc).toBeNull();
   });
 
+  it('auto-stops the cycle when it reaches COMPLETE (no elapsed/F0 runaway)', async () => {
+    const r = getRuntime();
+    r.startCycle({
+      name: 'test',
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 60,
+      prevac_pulses: 0,
+      prevac_vacuum_target_bar: 0.2,
+      prevac_steam_target_bar: 2,
+      preheat_duration_s: 10,
+      dry_duration_s: 60,
+      f0_target_min: 1,
+    });
+    // Jump straight to COMPLETE; the next tick must freeze the cycle.
+    r.plc!.forcePhase('COMPLETE', r.orchestrator.getState().time_s);
+    await r.tick();
+    expect(r.cycle_running).toBe(false);
+    expect(r.plc).toBeNull();
+  });
+
   it('publishes a snapshot on every tick', async () => {
     const r = getRuntime();
     const seen: number[] = [];
