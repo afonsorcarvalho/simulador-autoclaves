@@ -2,7 +2,7 @@
 
 ## Em curso
 
-- SP-cal (calibração da secagem) — **come-up wetting**: o testemunho entra seco no HOLD, por isso a radiação sobreaquece-o a ~137 °C e a secagem quase não arrefece. O pinning está correto (segura 134 °C quando molhado — provado). Falta o come-up depositar/reter água no testemunho. Técnico: (a) condensação multi-nó partilha `chamber_vapor_kg` sem decrementar entre nós → possível sub-molhagem/over-draw; orçamentar o vapor da câmara pelos nós; (b) afinar condensação no aquecimento/pressurize; (c) possivelmente limitar radiação. Doc: [modelo-secagem-vacuo.md], canvas de calibração. Ideal com trace real de hardware (não disponível → afinar por plausibilidade/literatura).
+- SP-cal (calibração da secagem) — **próximo: superaquecimento do gás da câmara**. ✅ Feito: come-up wetting resolvido (calor em vapor saturado vem por condensação → testemunho acumula ~0.38 kg; commit fa56b0f) + orçamento partilhado de vapor multi-nó + pinning de saturação (segura 134 °C molhado). ⚠️ Bloqueio da queda na secagem: o gás da câmara superaquece a ~217 °C (artefacto do modelo vapor-só, era out-of-scope §7 do spec) e, enquanto há densidade no início do DRY, aquece o testemunho por convecção → sobe a ~138 em vez de cair; só arrefece quando P→0. Próximo: limitar T_gás da câmara à saturação enquanto há duas fases / ou termo de arrefecimento por expansão (`chamber.ts`). Coluna `m_water_load` no trace p/ diagnóstico. Sem hardware → validar por plausibilidade.
 
 ## Pendente
 
