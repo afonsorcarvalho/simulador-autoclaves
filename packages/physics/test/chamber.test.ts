@@ -256,6 +256,23 @@ describe('chamber_step — wall thermal mass', () => {
   });
 });
 
+describe('chamber_step — Q_wall_external heats the wall', () => {
+  const walled: ChamberParams = {
+    V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
+  };
+
+  it('external wall heat raises T_wall, not applied to the gas directly', () => {
+    const s: ChamberState = { m_air: 0.18, m_vap: 0, m_liq: 0, T: C_to_K(100), T_wall: C_to_K(100) };
+    const f: ChamberFluxes = {
+      inflow: zeroFlow(), inflow_T: s.T, outflow: zeroFlow(),
+      Q_external: 0, Q_wall_external: 25000, // 25 kW into the 25 kJ/K wall → +1 K/s
+    };
+    const next = chamber_step(s, walled, f, 1);
+    expect(next.T_wall!).toBeGreaterThan(s.T_wall!); // wall warmed
+    expect(next.T_wall!).toBeCloseTo(C_to_K(100) + 1, 0); // ≈ +1 K (25000 J / 25000 J/K), minus gas coupling
+  });
+});
+
 describe('wall coupling scales with gas density', () => {
   const p: ChamberParams = { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
   const base: ChamberState = { m_air: 1e-5, m_vap: 1e-4, m_liq: 0, T: C_to_K(60), T_wall: C_to_K(140) };

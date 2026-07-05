@@ -50,6 +50,9 @@ export interface ChamberFluxes {
   inflow_T: number; // K
   outflow: SpeciesFlow;
   Q_external: number; // W (positive = into chamber)
+  /** External heat delivered to the WALL (W, positive = into wall). E.g. jacket→chamber
+   *  conduction. Kept separate from Q_external so it never superheats the near-vacuum gas. */
+  Q_wall_external?: number;
   /** Escala do acoplamento convectivo parede↔gás (∝ densidade). Default 1 (back-compat). */
   wall_coupling_scale?: number;
 }
@@ -154,6 +157,14 @@ export function chamber_step(
       // No gas mass — wall stays at previous temperature
       T_wall = s.T_wall ?? s.T;
     }
+  }
+
+  // External heat straight into the wall (jacket conduction) — added after gas↔wall relax.
+  const Q_wall_ext = f.Q_wall_external ?? 0;
+  if (wall_C > 0 && Q_wall_ext !== 0) {
+    T_wall = (T_wall ?? s.T_wall ?? s.T) + (Q_wall_ext * dt) / wall_C;
+    if (T_wall > T_MAX_K) T_wall = T_MAX_K;
+    if (T_wall < T_MIN_K) T_wall = T_MIN_K;
   }
   // If no wall model: T_wall remains undefined (back-compat)
 
