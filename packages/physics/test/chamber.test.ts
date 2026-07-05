@@ -306,6 +306,21 @@ describe('chamber_step — two-phase saturation pin', () => {
     expect(cur.m_liq).toBeGreaterThan(0); // still two-phase
   });
 
+  it('pins a SUPERHEATED gas back to T_sat in a single step while liquid is present', () => {
+    // Gas deliberately above saturation with liquid present (no-wall CV so the equilibrium
+    // partition acts on the gas directly). The OLD rate-based model (k_evap-limited
+    // evaporation, no pin) leaves the gas superheated at ~150°C, far from its vapor's T_sat;
+    // the new equilibrium pin drives it to T_sat(p_vap) in ONE step while liquid remains.
+    const T_sup = C_to_K(160); // superheated
+    const m_vap = m_vap_sat(C_to_K(120)); // vapor amount whose saturation temp is ~120°C, well below 160
+    const s: ChamberState = { m_air: 1e-6, m_vap, m_liq: 0.05, T: T_sup };
+    const next = chamber_step(s, params150L, noFlux(T_sup), 0.05);
+    const p_vap = Math.min((next.m_vap * 461.5 * next.T) / 0.15, p_sat_water(next.T));
+    expect(next.T).toBeCloseTo(T_sat_water(p_vap), 0); // pinned to saturation
+    expect(next.T).toBeLessThan(C_to_K(150)); // dropped far below the 160°C superheat
+    expect(next.m_liq).toBeGreaterThan(0); // still two-phase
+  });
+
   it('conserves total water mass (m_vap + m_liq) across a step', () => {
     const T = C_to_K(120);
     const s: ChamberState = { m_air: 0, m_vap: 0.02, m_liq: 0.01, T, T_wall: T };
