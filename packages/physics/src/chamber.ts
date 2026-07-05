@@ -1,5 +1,5 @@
 import { R_AIR, R_VAP, CV_AIR, CV_VAP, CP_LIQ, CP_AIR, CP_VAP } from './constants.js';
-import { p_sat_water, h_vap_water } from './saturation.js';
+import { p_sat_water, h_vap_water, T_sat_water } from './saturation.js';
 
 export interface ChamberState {
   m_air: number; // kg
@@ -168,42 +168,14 @@ export function chamber_step(
   }
   // If no wall model: T_wall remains undefined (back-compat)
 
-  // 3.5. Evaporation: liquid → vapor when sub-saturated
-  if (p.allowLiquid && m_liq > 0) {
-    const t_C_evap = T - 273.15;
-    const p_sat_now = Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C_evap)) * 133.322;
-    const p_vap_now = (m_vap * R_VAP * T) / p.V;
-    if (p_vap_now < p_sat_now) {
-      const k_evap = 1e-7; // kg/(s·Pa) — empirical; tunable
-      const dm_evap_max = m_liq;
-      const dm_evap = Math.min(k_evap * (p_sat_now - p_vap_now) * dt, dm_evap_max);
-      m_liq -= dm_evap;
-      m_vap += dm_evap;
-      // Cools system: latent heat absorbed
-      const denom_evap = Math.max(
-        m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ,
-        MIN_HEAT_CAP_JK,
-      );
-      T -= (dm_evap * h_vap_water(T)) / denom_evap;
-    }
-  }
-
-  // 4. Saturation / condensation loop (1-3 iterations are enough for typical dt)
-  for (let iter = 0; iter < 3; iter++) {
-    const p_sat = (() => {
-      const t_C = T - 273.15;
-      const p_mmHg = Math.pow(10, 8.07131 - 1730.63 / (233.426 + t_C));
-      return p_mmHg * 133.322;
-    })();
-    const m_vap_max = (p_sat * p.V) / (R_VAP * T);
-    if (m_vap <= m_vap_max + 1e-9) break;
-
-    const dm_cond = m_vap - m_vap_max;
-    if (!p.allowLiquid) {
-      // Jacket case: condensate drips out (to drain), but latent heat went into the WALL
-      // (real physics: vapor condenses on cooler wall surface, latent heat raises wall T,
-      // cold drained liquid leaves with negligible enthalpy). Depositing into wall avoids
-      // the T-spike that occurs when gas alone (~30 J/K) absorbs ~2400 kJ/kg of latent heat.
+  // 4. Phase equilibrium.
+  if (!p.allowLiquid) {
+    // Jacket: condensate drips out, latent to the wall (unchanged behaviour).
+    for (let iter = 0; iter < 3; iter++) {
+      const p_sat = p_sat_water(T);
+      const m_vap_max = (p_sat * p.V) / (R_VAP * T);
+      if (m_vap <= m_vap_max + 1e-9) break;
+      const dm_cond = m_vap - m_vap_max;
       m_vap = m_vap_max;
       if (dm_cond > 0) {
         const Q_lat = dm_cond * h_vap_water(T);
@@ -211,7 +183,6 @@ export function chamber_step(
           T_wall += Q_lat / wall_C;
           if (T_wall > T_MAX_K) T_wall = T_MAX_K;
         } else {
-          // Fallback (no wall model): floor-protected gas heating
           const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP, MIN_HEAT_CAP_JK);
           T += Q_lat / denom;
           if (T > T_MAX_K) T = T_MAX_K;
@@ -219,15 +190,59 @@ export function chamber_step(
       }
       break;
     }
-    m_vap -= dm_cond;
-    m_liq += dm_cond;
-    const Q_lat = dm_cond * h_vap_water(T);
-    const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
-    T += Q_lat / denom;
-    if (T > T_MAX_K) {
-      T = T_MAX_K;
-      break;
-    } // guard against residual runaway
+  } else {
+    // Chamber: two-phase equilibrium partition. Latent exchanged with the WALL (large,
+    // stable heat capacity), gas pinned to T_sat while liquid remains. Replaces the
+    // rate-based k_evap + gas-heating condensation that spiked at near-vacuum.
+    // ponytail: uses h_vap at current T as the latent constant; the wall buffer makes the
+    // scheme robust to that approximation. Tune wall_h_W_per_K / wall_mass_kg for real hardware.
+    const wallOK = T_wall !== undefined && wall_C > 0;
+    const m_vap_sat = (p_sat_water(T) * p.V) / (R_VAP * T);
+
+    if (m_vap > m_vap_sat) {
+      // Supersaturated → condense excess to saturation; latent to the wall (or gas floor).
+      const dm = m_vap - m_vap_sat;
+      m_vap = m_vap_sat;
+      m_liq += dm;
+      const Q_lat = dm * h_vap_water(T);
+      if (wallOK) T_wall! += Q_lat / wall_C;
+      else T += Q_lat / Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
+    } else if (m_liq > 0 && m_vap < m_vap_sat) {
+      // Sub-saturated with liquid → evaporate toward saturation; latent drawn FROM the wall.
+      let dm = Math.min(m_liq, m_vap_sat - m_vap);
+      const gas_C_evap = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+      if (!wallOK) {
+        // No wall: latent comes from the gas itself. Cap evaporation so the gas cannot
+        // over-cool past its own saturation temperature — otherwise dumping a full liquid
+        // charge's latent into the tiny gas heat capacity crashes T and leaves the vapor
+        // grossly oversaturated (the very near-vacuum spike this scheme removes). Converges
+        // to equilibrium over successive steps, matching the old rate-based evaporator.
+        const T_sat_now = T_sat_water((m_vap * R_VAP * T) / p.V);
+        const dm_energy = Math.max(0, (gas_C_evap * (T - T_sat_now)) / h_vap_water(T));
+        dm = Math.min(dm, dm_energy);
+      }
+      m_vap += dm;
+      m_liq -= dm;
+      const Q_lat = dm * h_vap_water(T);
+      if (wallOK) T_wall! -= Q_lat / wall_C;
+      else T -= Q_lat / Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
+    }
+
+    // Pin: while liquid remains, the gas cannot exceed its saturation temperature. Clamp T to
+    // T_sat(p_vap) and deposit the sensible surplus/deficit into the wall (energy-conserving).
+    if (m_liq > 0) {
+      const p_vap = (m_vap * R_VAP * T) / p.V;
+      const T_sat = T_sat_water(p_vap);
+      const gas_C = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+      if (wallOK) T_wall! += (gas_C * (T - T_sat)) / wall_C;
+      T = T_sat;
+    }
+
+    if (T_wall !== undefined) {
+      if (T_wall > T_MAX_K) T_wall = T_MAX_K;
+      if (T_wall < T_MIN_K) T_wall = T_MIN_K;
+    }
+    T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
   }
 
   // 5. Pressure relief: vent excess vapor (or air) when P_total exceeds setpoint.

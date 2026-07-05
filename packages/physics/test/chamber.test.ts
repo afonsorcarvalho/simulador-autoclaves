@@ -8,6 +8,7 @@ import {
   type SpeciesFlow,
 } from '../src/chamber.js';
 import { C_to_K, Pa_to_bar } from '../src/constants.js';
+import { p_sat_water, T_sat_water } from '../src/saturation.js';
 
 const params150L: ChamberParams = { V: 0.15, allowLiquid: true };
 
@@ -283,5 +284,52 @@ describe('wall coupling scales with gas density', () => {
     const vac = chamber_step(base, p, { ...noFlow, wall_coupling_scale: 1e-4 }, 0.05);
     // scaled-down coupling ⇒ smaller rise toward the 140 °C wall
     expect(vac.T - base.T).toBeLessThan(full.T - base.T);
+  });
+});
+
+describe('chamber_step — two-phase saturation pin', () => {
+  const walled: ChamberParams = {
+    V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
+  };
+  const m_vap_sat = (T: number) => (p_sat_water(T) * 0.15) / (461.5 * T);
+
+  it('pins gas to T_sat(p_vap) while liquid is present, even when the wall is hotter', () => {
+    const T = C_to_K(134);
+    const s: ChamberState = {
+      m_air: 1e-6, m_vap: m_vap_sat(T), m_liq: 0.05, T, T_wall: C_to_K(140),
+    };
+    let cur = s;
+    for (let i = 0; i < 200; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
+    const p_vap = Math.min((cur.m_vap * 461.5 * cur.T) / 0.15, p_sat_water(cur.T));
+    expect(cur.T).toBeCloseTo(T_sat_water(p_vap), 0);
+    expect(cur.T).toBeLessThan(C_to_K(140)); // never reached the hot wall
+    expect(cur.m_liq).toBeGreaterThan(0); // still two-phase
+  });
+
+  it('conserves total water mass (m_vap + m_liq) across a step', () => {
+    const T = C_to_K(120);
+    const s: ChamberState = { m_air: 0, m_vap: 0.02, m_liq: 0.01, T, T_wall: T };
+    const next = chamber_step(s, walled, noFlux(T), 0.05);
+    expect(next.m_vap + next.m_liq).toBeCloseTo(s.m_vap + s.m_liq, 8);
+  });
+
+  it('degenerate m_liq=0 supersaturated: condenses to saturation, no 220°C ceiling', () => {
+    const T = C_to_K(60);
+    const s: ChamberState = { m_air: 0, m_vap: 0.02, m_liq: 0, T, T_wall: T };
+    const next = chamber_step(s, walled, noFlux(T), 0.05);
+    expect(next.m_liq).toBeGreaterThan(0); // condensed
+    expect(next.T).toBeLessThan(C_to_K(100)); // NOT slammed to the 220°C ceiling
+  });
+
+  it('no NaN under a hard vacuum pump-down with liquid present', () => {
+    const T = C_to_K(90);
+    const s: ChamberState = { m_air: 1e-6, m_vap: 0.001, m_liq: 0.02, T, T_wall: T };
+    const f: ChamberFluxes = {
+      inflow: zeroFlow(), inflow_T: T, outflow: { air: 0, vap: 0.01, liq: 0 }, Q_external: 0,
+    };
+    let cur = s;
+    for (let i = 0; i < 500; i++) cur = chamber_step(cur, walled, f, 0.05);
+    expect(Number.isFinite(cur.T)).toBe(true);
+    expect(Number.isFinite(cur.m_vap)).toBe(true);
   });
 });
