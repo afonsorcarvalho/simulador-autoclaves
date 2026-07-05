@@ -191,6 +191,34 @@ Esterilização (HOLD) inalterada — testemunho na temperatura de esterilizaç�
 - F0 continua a referenciar a temperatura da carga/testemunho.
 - Sem regressão nas fases pré-secagem (prevac/pressurize/hold) — cobertas por testes existentes.
 
+## 8b. Bloqueador atual: superaquecimento do gás da câmara (2026-07-05)
+
+Estado após implementar N-nós + pinning + come-up wetting: o testemunho **molha** no come-up
+(~0.38 kg de condensado) e fica preso a 134 °C no HOLD. Mas a **queda na secagem ainda não aparece**
+(testemunho sobe a ~138 e cai pouco). Diagnóstico com a coluna `m_water_load` do trace:
+
+1. No início do DRY o testemunho tem ~0.3 kg de água e faz flash (água → 0), MAS **sobe** 135→138 em
+   vez de arrefecer.
+2. Causa: o **gás da câmara superaquece** (~217 °C) e, enquanto ainda há densidade no início do DRY
+   (`rho_gas` não-nula), aquece o testemunho por **convecção** (~660 W) — mais do que o flash arrefece.
+   Quando P→0 (`rho_gas`→0) a convecção morre e aí o testemunho arrefece lentamente (mas já secou).
+3. Origem do 217 °C: dois mecanismos degenerados da câmara em vácuo:
+   - **Spike de latente** (`chamber.ts:213-215`): o vapor que a carga faz flash entra na câmara,
+     ultrapassa a saturação e condensa; o latente é depositado no gás com `denom` no floor de 500 J/K
+     → T dispara. (Feedback: carga faz flash → câmara condensa → gás dispara → aquece a carga.)
+   - **Teto T_MAX** (`chamber.ts:126`): com `m_liq=0` e vácuo, a massa de gás é quase-nula e T bate no
+     teto de 220 °C (T ill-defined com heat capacity ~0).
+
+Tentativa rejeitada: clamp `T ≤ T_sat(p_vap)` quando `m_liq>0` — ajuda parcialmente (217→155) mas (a)
+não cobre o caso `m_liq=0`, (b) com o vapor supersaturado o `p_vap` cinético dá T_sat alto (clamp fraco),
+(c) abrandou a remoção de líquido da câmara (quebrou `drying.test.ts`). Precisa de redesenho, não patch.
+
+**Abordagem a desenhar (próximo):** modelar a câmara como sistema bifásico próprio, pinned a T_sat(P)
+enquanto duas fases, com a energia latente a ir para a parede/removida em vez de superaquecer o gás
+quase-nulo; e/ou tratar o gás vac­uo-só (massa < limiar) como termodinamicamente irrelevante (T pegada
+a T_sat(p_vap) ou à parede, não ao teto). Alvo: gás da câmara não excede a saturação → convecção deixa
+de aquecer a carga no início do DRY → o flash da água (0.38 kg) faz a queda aparecer end-to-end.
+
 ## 9. Questões em aberto (para brainstorm / plano)
 
 1. Nº de nós lumped: 1 carga agregada + testemunho, ou 2 (metal + têxtil) + testemunho?
