@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
 import { buildLoadState } from '../../src/load.js';
-import { p_sat_water } from '../../src/saturation.js';
+import { p_sat_water, T_sat_water } from '../../src/saturation.js';
 import { C_to_K, R_AIR, R_VAP, GAMMA_AIR } from '../../src/constants.js';
 
 function params(): SystemParams {
@@ -80,5 +80,24 @@ describe('vacuum drying', () => {
     const witness = s.load.nodes.find((n) => n.isWitness)!;
     expect(witness.T).toBeLessThan(T0 - 10); // testemunho cai >10 °C
     expect(witness.m_water).toBeLessThan(0.2); // secou
+  });
+});
+
+describe('jacket conduction reaches the chamber wall, not the gas', () => {
+  it('with a hot jacket and liquid in the chamber, the gas stays near T_sat (not superheated)', () => {
+    const p = params(); // jacket_chamber_h_W_per_K = 150
+    const T = C_to_K(134);
+    const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], T);
+    let s: SystemState = {
+      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0.05, T, T_wall: T },
+      jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
+      generator: null, load, f0_minutes: 0, time_s: 0,
+    };
+    for (let i = 0; i < 400; i++) {
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    }
+    const p_vap = Math.min((s.chamber.m_vap * R_VAP * s.chamber.T) / 0.15, p_sat_water(s.chamber.T));
+    expect(Math.abs(s.chamber.T - T_sat_water(p_vap))).toBeLessThan(3);
+    expect(s.chamber.T).toBeLessThan(C_to_K(139));
   });
 });

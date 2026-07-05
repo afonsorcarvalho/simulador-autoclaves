@@ -138,8 +138,12 @@ describe('system_step — jacket-chamber wall coupling', () => {
       const s = basicState();
       s.jacket.T = C_to_K(140);
       s.chamber.T = C_to_K(40);
+      s.chamber.T_wall = C_to_K(40);
       s.load = buildLoadState(undefined, C_to_K(40));
       const p = basicParams();
+      // Jacket conduction now heats the chamber WALL, not the gas directly; the two-phase
+      // chamber always has a wall, so the scenario must include one for the heat to reach the gas.
+      p.chamber = { ...p.chamber, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
       p.jacket_chamber_h_W_per_K = h_jc;
       let cur = s;
       for (let i = 0; i < 600; i++) {
@@ -150,8 +154,10 @@ describe('system_step — jacket-chamber wall coupling', () => {
     };
     const T_with = makeScenario(200);
     const T_without = makeScenario(0);
-    // With jacket coupling enabled, chamber should be noticeably warmer
-    expect(T_with).toBeGreaterThan(T_without + 1);
+    // Jacket coupling still warms the chamber, but via the wall now: the heat charges the
+    // large wall thermal mass instead of spiking the gas, so the gas rise is small (was a
+    // +1 K/6 s margin under the old direct-gas-heating model, which this task removes).
+    expect(T_with).toBeGreaterThan(T_without);
   });
 
   it('back-compat: disabling coupling (h=0) produces cooler chamber than h=200', () => {
@@ -161,8 +167,11 @@ describe('system_step — jacket-chamber wall coupling', () => {
       const s = basicState();
       s.jacket.T = C_to_K(140);
       s.chamber.T = C_to_K(40);
+      s.chamber.T_wall = C_to_K(40);
       s.load = buildLoadState(undefined, C_to_K(40));
       const p = basicParams();
+      // Jacket conduction now heats the chamber WALL, not the gas directly; include a wall.
+      p.chamber = { ...p.chamber, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
       p.jacket_chamber_h_W_per_K = h_jc;
       let cur = s;
       for (let i = 0; i < 600; i++) {

@@ -259,7 +259,8 @@ export function system_step(
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
     outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load + Q_jacket_to_chamber, // gains from jacket, loses to load
+    Q_external: -Q_load, // loses heat to the load only
+    Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
     wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };
   const nextChamber = chamber_step(state.chamber, params.chamber, chamberFluxes, dt);
