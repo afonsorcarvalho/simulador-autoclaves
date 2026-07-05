@@ -27,7 +27,9 @@ function defaultParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      relief_pressure_Pa: bar_to_Pa(3.04),
+      // 3.2 bar: with the gas pinned to saturation, reaching 134 °C needs p_sat(134 °C)
+      // ≈ 3.09 bar (this model's Antoine); 3.2 bar gives margin. See chamber two-phase spec.
+      relief_pressure_Pa: bar_to_Pa(3.2),
     },
     jacket: {
       V: 0.025,
