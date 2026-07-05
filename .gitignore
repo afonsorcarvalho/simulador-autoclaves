@@ -28,6 +28,13 @@ logs/
 # Claude scratchpad (memory buffer, not source)
 .remember/
 
+# Claude personal per-project overrides (team config lives in .claude/settings.json)
+.claude/settings.local.json
+
+# Playwright MCP scratch + ad-hoc screenshots
+.playwright-mcp/
+/*.png
+
 # Script output (plots, CSV exports)
 scripts/*.png
 scripts/*.csv

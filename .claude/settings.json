@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install*)",
+      "Bash(pnpm --filter*)",
+      "Bash(pnpm test*)",
+      "Bash(pnpm lint*)",
+      "Bash(pnpm typecheck*)",
+      "Bash(pnpm build*)",
+      "Bash(pnpm format*)",
+      "Bash(pnpm generate*)",
+      "Bash(pnpm drift-check*)",
+      "Bash(pnpm exec*)",
+      "Bash(pnpm tsx*)",
+      "Bash(pnpm vitest*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ],
+    "deny": [
+      "Edit(packages/protocol/dist/**)",
+      "Write(packages/protocol/dist/**)",
+      "Edit(pnpm-lock.yaml)",
+      "Write(pnpm-lock.yaml)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Prettier...",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const f=JSON.parse(d).tool_input.file_path;if(f&&/\\.(ts|tsx|js|jsx|mjs|cjs|json|css|md|ya?ml)$/i.test(f))require('child_process').spawnSync('pnpm',['exec','prettier','--write','--ignore-unknown',f],{stdio:'ignore',shell:true})}catch(e){}})\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,6 +6,16 @@
 
 ## Pendente
 
+- Física — investigar achados do physics-model-reviewer (2026-07-03):
+  - `generator.ts:57-68` — double-count de energia: `dm_vap = Q_in/h_vap` gasta todo Q_in em latente mas T também sobe pela curva sat → calor sensível nunca debitado (não-conservativo, só limitado pela válvula de alívio). Corrigir: dividir Q_in entre latente + sensível.
+  - Cap de outflow `chamber.ts:89-91` / `integrator.ts:211-212` aplicado no lado errado → massa fantasma se ligar válvula chamber↔jacket. Topologia atual não dispara. Aplicar cap ao flux partilhado antes do split source/dest.
+  - Menor: constantes Antoine inline em `chamber.ts` (usar `p_sat_water`); `k_evap=1e-7` magic → `constants.ts`; F0 dispara no drying (falta via de arrefecimento load/jacket).
+- Protocolo — SP5-prep, resolver antes de escrever firmware (protocol-consistency-reviewer, 2026-07-03):
+  - `emit-cpp.ts:21-30` — header C++ não emite `type` → C++ não distingue uint16/int16. `F0_X10` (uint16, chega a 50000) lido como signed = erro >32767. Emitir `type` no `dist/registers.h`.
+  - Escalas hardcoded em código consumidor em vez do register: `F0_X10` ×10 (`sensor-publisher.ts:36` / `plc.ts:73`), `SIM_TIME_SCALE` ×100. Mover escala p/ definição do register (single source of truth) — senão TS e firmware driftam.
+  - Parser (`parser.ts`/`schema.ts`) não valida `range×scale` cabe em int16 → overflow silencioso (clip em `register-access.ts:69`). Adicionar bound-check na cross-validation.
+  - Sentinelas PT100 (-32768=OPEN / 32767=SHORT) documentadas só em `P_CHAMBER_INT`/`T_CHAMBER_INT`; faltam nos outros canais incl. `T_TESTEMUNHO` (crítico F0). Clarificar/documentar.
+  - Menor: tick 32-bit (`MODEL_TICK_LOW/HIGH`) sem marcador word-order — fixar "LOW = endereço menor" em comentário antes de recombinar.
 - Sub-projeto 5 — Firmware ESP32 + Modbus slave (I/O + watchdog + fast model)
 - Sub-projeto 6 — Injeção de falhas (hooks orchestrator + UI faults + cenários)
 - Sub-projeto 7 — Placa condicionamento KiCad (schematic + PCB + BOM)
