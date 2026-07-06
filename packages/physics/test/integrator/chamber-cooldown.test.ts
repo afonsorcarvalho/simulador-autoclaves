@@ -81,14 +81,45 @@ describe('condensate drain', () => {
   });
 });
 
-describe('plant fidelity — chamber stays within EN 285 band when steam valve is shut', () => {
-  it('durably settles within the band ceiling (relief-pinned), never runs away hot', () => {
-    // Production calibration. Durable equilibrium ≈ 135.5 °C (relief pin at 3.2 bar), well below
-    // the setpoint+3 ceiling. This is the plant's real steam-off floor — a bang-bang on the steam
-    // valve can hold [~135.5, 137], inside the EN 285 band. It does NOT reach the 134 setpoint;
-    // see the file-header FINDING for the relief-setpoint / Task 2 topology fix.
-    const T_eq = settle(150, 200);
-    expect(T_eq).toBeLessThanOrEqual(134 + 3); // within EN 285 +3 ceiling — durable, not a transient dip
-    expect(T_eq).toBeGreaterThan(134); // pinned above setpoint by the relief saturation temperature
+// Production loss calibration (rev.2): ambient loss + condensate drain make the starved chamber
+// fall BELOW setpoint, so a controller (virtual PLC or real PLC over Modbus) can regulate it up.
+// The relief is now a safety cap (3.4 bar), not the operating point. Values are vessel-calibration
+// knobs (ponytail) tuned here against the controllability gate.
+const H_AMBIENT_W_PER_K = 10;
+const DRAIN_KG_PER_S = 2e-5;
+const CHAMBER_RELIEF_PA = 3.4e5;
+
+function settleWithLosses(): number {
+  const SP = C_to_K(134);
+  const T0 = C_to_K(135.5);
+  const base = holdParams();
+  const p = {
+    ...base,
+    chamber: {
+      ...base.chamber,
+      relief_pressure_Pa: CHAMBER_RELIEF_PA,
+      h_ambient_W_per_K: H_AMBIENT_W_PER_K,
+      drain_kg_per_s: DRAIN_KG_PER_S,
+    },
+  } as SystemParams;
+  const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], SP);
+  let s: SystemState = {
+    chamber: { m_air: 1e-6, m_vap: (p_sat_water(T0) * 0.15) / (R_VAP * T0), m_liq: 0.02, T: T0, T_wall: C_to_K(135) },
+    jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(138)), m_liq: 0, T: C_to_K(138), T_wall: C_to_K(138) },
+    generator: null, load, f0_minutes: 0, time_s: 0,
+  };
+  for (let i = 0; i < 4000; i++) {
+    s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05); // 200 s starved
+  }
+  return K_to_C(s.chamber.T);
+}
+
+describe('plant controllability — starved chamber falls below setpoint (losses + drain)', () => {
+  it('with ambient loss + condensate drain, a steam-starved chamber cools below setpoint', () => {
+    // The controller closes V_STEAM_IN_INT when hot; the plant must then fall below setpoint so
+    // the controller has to reopen — otherwise the chamber is uncontrollable (Task 1 finding).
+    const T_eq = settleWithLosses();
+    expect(T_eq).toBeLessThan(134 - 0.1); // fell below setpoint → controllable
+    expect(T_eq).toBeGreaterThan(120); // gentle fall over 200 s starved, not a crash (calibration sane)
   });
 });

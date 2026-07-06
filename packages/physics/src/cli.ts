@@ -84,6 +84,11 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       ...(eq.chamber_relief_bar !== undefined
         ? { relief_pressure_Pa: bar_to_Pa(eq.chamber_relief_bar) }
         : {}),
+      // ponytail: SP-B loss paths (vessel-calibration knobs) — ambient loss + passive condensate
+      // trap, sized so a steam-starved chamber falls below setpoint (controllable). Relief is a
+      // safety cap; the steam-valve controller regulates temperature against these losses.
+      h_ambient_W_per_K: 10,
+      drain_kg_per_s: 2e-5,
     },
     jacket: {
       V: eq.jacket_volume_l / 1000,

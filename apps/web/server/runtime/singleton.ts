@@ -27,9 +27,14 @@ function defaultParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      // 3.2 bar: with the gas pinned to saturation, reaching 134 °C needs p_sat(134 °C)
-      // ≈ 3.09 bar (this model's Antoine); 3.2 bar gives margin. See chamber two-phase spec.
-      relief_pressure_Pa: bar_to_Pa(3.2),
+      // SP-B: relief is now a SAFETY CAP (3.4 bar), not the operating point. The chamber temperature
+      // is regulated by the steam-valve controller (bang-bang) against the loss paths below.
+      relief_pressure_Pa: bar_to_Pa(3.4),
+      // ponytail: vessel-calibration knobs — ambient loss (door/penetrations) + passive condensate
+      // trap. Sized so a steam-starved chamber falls below setpoint in ~50 s (controllable). Tune on
+      // the real vessel. See docs .../2026-07-06-chamber-temperature-control-design.md.
+      h_ambient_W_per_K: 10,
+      drain_kg_per_s: 2e-5,
     },
     jacket: {
       V: 0.025,
