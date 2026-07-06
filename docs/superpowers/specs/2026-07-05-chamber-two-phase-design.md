@@ -86,7 +86,7 @@ atingir 134. Alívio da câmara sobe **3.04 → 3.2 bar** (margem acima de 3.09)
 
 - `apps/web/server/runtime/singleton.ts` (`bar_to_Pa(3.04)` → `3.2`).
 - `packages/physics/scenarios/ster-134-prevac.yaml` (`chamber_relief_bar: 3.04` → `3.2`,
-  + comentário do header).
+  - comentário do header).
 
 Fisicamente honesto: autoclaves reais correm ~3.1–3.2 bar para 134 °C.
 
@@ -120,14 +120,14 @@ bomba ─(outflow vapor)→ sub-satura câmara → líquido faz flash → arrefe
 
 ## Ficheiros
 
-| Ficheiro | Mudança |
-|---|---|
-| `packages/physics/src/chamber.ts` | solver de equilíbrio (substitui §3.5+§4 no caminho `allowLiquid`); `Q_wall_external` |
-| `packages/physics/src/integrator.ts` | linha 262: `Q_external`/`Q_wall_external` |
-| `apps/web/server/runtime/singleton.ts` | relief 3.04 → 3.2 bar |
-| `packages/physics/scenarios/ster-134-prevac.yaml` | relief 3.04 → 3.2 bar |
-| `packages/physics/test/chamber.test.ts` | unit bifásico |
-| migração ~3 testes | wall-coupling / drying-liquid / hardness-F0 |
+| Ficheiro                                          | Mudança                                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `packages/physics/src/chamber.ts`                 | solver de equilíbrio (substitui §3.5+§4 no caminho `allowLiquid`); `Q_wall_external` |
+| `packages/physics/src/integrator.ts`              | linha 262: `Q_external`/`Q_wall_external`                                            |
+| `apps/web/server/runtime/singleton.ts`            | relief 3.04 → 3.2 bar                                                                |
+| `packages/physics/scenarios/ster-134-prevac.yaml` | relief 3.04 → 3.2 bar                                                                |
+| `packages/physics/test/chamber.test.ts`           | unit bifásico                                                                        |
+| migração ~3 testes                                | wall-coupling / drying-liquid / hardness-F0                                          |
 
 ## Fora de escopo
 

@@ -21,17 +21,21 @@ These `dist/` files are **generated, drift-checked in CI, and deny-listed for ha
    - Signed vs unsigned matches the physical range; scale factor documented.
 
 2. **Regenerate both artifacts:**
+
    ```bash
    pnpm --filter @sim/protocol generate
    ```
 
 3. **Drift-check (must pass):**
+
    ```bash
    pnpm drift-check
    ```
+
    This regenerates and runs `git diff --exit-code` on `dist/`. If it fails, the artifacts weren't committed in sync — stage the regenerated `dist/`.
 
 4. **Typecheck + test the protocol package:**
+
    ```bash
    pnpm --filter @sim/protocol typecheck
    pnpm --filter @sim/protocol test
@@ -42,6 +46,7 @@ These `dist/` files are **generated, drift-checked in CI, and deny-listed for ha
 6. **Commit `registers.yaml` and the regenerated `dist/` together.**
 
 ## Red flags
+
 - Editing `dist/registers.ts` or `dist/registers.h` by hand → stop, edit YAML and regenerate.
 - Committing `registers.yaml` without the regenerated `dist/` → CI drift-check will fail.
 - Reusing an address or changing a width without checking multi-word neighbours.

@@ -1,6 +1,13 @@
 // packages/physics/test/constants.test.ts
 import { describe, it, expect } from 'vitest';
-import { SIGMA_SB, CP_WATER, RHO_GAS_ATM_REF, H0_CONV_DEFAULT, K_COND_DEFAULT, K_EV_DEFAULT } from '../src/constants.js';
+import {
+  SIGMA_SB,
+  CP_WATER,
+  RHO_GAS_ATM_REF,
+  H0_CONV_DEFAULT,
+  K_COND_DEFAULT,
+  K_EV_DEFAULT,
+} from '../src/constants.js';
 
 describe('drying-model constants', () => {
   it('exposes Stefan-Boltzmann and water cp', () => {

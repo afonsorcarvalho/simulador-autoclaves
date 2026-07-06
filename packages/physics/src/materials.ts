@@ -9,14 +9,70 @@ export interface MaterialProps {
 }
 
 export const MATERIALS = {
-  STAINLESS_316: { rho: 8000, cp: 500, k: 16, emissivity: 0.5, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  CARBON_STEEL: { rho: 7870, cp: 460, k: 50, emissivity: 0.7, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  ALUMINUM: { rho: 2700, cp: 900, k: 200, emissivity: 0.1, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  GLASS: { rho: 2500, cp: 840, k: 1.0, emissivity: 0.9, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  POLYPROPYLENE: { rho: 905, cp: 1920, k: 0.2, emissivity: 0.9, waterCapacity_kg_per_kg: 0.05, shapeFactor: 6 },
-  PEEK: { rho: 1300, cp: 1340, k: 0.25, emissivity: 0.9, waterCapacity_kg_per_kg: 0.05, shapeFactor: 6 },
-  SILICONE: { rho: 1200, cp: 1300, k: 0.2, emissivity: 0.9, waterCapacity_kg_per_kg: 0.1, shapeFactor: 6 },
-  COTTON_TEXTILE: { rho: 400, cp: 1400, k: 0.04, emissivity: 0.8, waterCapacity_kg_per_kg: 0.6, shapeFactor: 10 },
+  STAINLESS_316: {
+    rho: 8000,
+    cp: 500,
+    k: 16,
+    emissivity: 0.5,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  CARBON_STEEL: {
+    rho: 7870,
+    cp: 460,
+    k: 50,
+    emissivity: 0.7,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  ALUMINUM: {
+    rho: 2700,
+    cp: 900,
+    k: 200,
+    emissivity: 0.1,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  GLASS: {
+    rho: 2500,
+    cp: 840,
+    k: 1.0,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  POLYPROPYLENE: {
+    rho: 905,
+    cp: 1920,
+    k: 0.2,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.05,
+    shapeFactor: 6,
+  },
+  PEEK: {
+    rho: 1300,
+    cp: 1340,
+    k: 0.25,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.05,
+    shapeFactor: 6,
+  },
+  SILICONE: {
+    rho: 1200,
+    cp: 1300,
+    k: 0.2,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.1,
+    shapeFactor: 6,
+  },
+  COTTON_TEXTILE: {
+    rho: 400,
+    cp: 1400,
+    k: 0.04,
+    emissivity: 0.8,
+    waterCapacity_kg_per_kg: 0.6,
+    shapeFactor: 10,
+  },
 } as const satisfies Record<string, MaterialProps>;
 
 export type MaterialName = keyof typeof MATERIALS;

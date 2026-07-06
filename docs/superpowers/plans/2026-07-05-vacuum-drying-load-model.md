@@ -31,6 +31,7 @@
 ## Task 1: Constantes novas
 
 **Files:**
+
 - Modify: `packages/physics/src/constants.ts`
 - Test: `packages/physics/test/constants.test.ts` (criar se não existir)
 
@@ -39,7 +40,14 @@
 ```ts
 // packages/physics/test/constants.test.ts
 import { describe, it, expect } from 'vitest';
-import { SIGMA_SB, CP_WATER, RHO_GAS_ATM_REF, H0_CONV_DEFAULT, K_COND_DEFAULT, K_EV_DEFAULT } from '../src/constants.js';
+import {
+  SIGMA_SB,
+  CP_WATER,
+  RHO_GAS_ATM_REF,
+  H0_CONV_DEFAULT,
+  K_COND_DEFAULT,
+  K_EV_DEFAULT,
+} from '../src/constants.js';
 
 describe('drying-model constants', () => {
   it('exposes Stefan-Boltzmann and water cp', () => {
@@ -62,6 +70,7 @@ Expected: FAIL (imports indefinidos).
 - [ ] **Step 3: Implementar**
 
 Adicionar ao fim de `packages/physics/src/constants.ts`:
+
 ```ts
 /** Constante de Stefan-Boltzmann (W/(m²·K⁴)). */
 export const SIGMA_SB = 5.67e-8;
@@ -95,6 +104,7 @@ git commit -m "feat(physics): add drying-model constants (sigma, cp_water, calib
 ## Task 2: Registry de materiais + área estimada
 
 **Files:**
+
 - Create: `packages/physics/src/materials.ts`
 - Test: `packages/physics/test/materials.test.ts`
 
@@ -157,14 +167,70 @@ export interface MaterialProps {
 }
 
 export const MATERIALS = {
-  STAINLESS_316: { rho: 8000, cp: 500, k: 16, emissivity: 0.5, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  CARBON_STEEL: { rho: 7870, cp: 460, k: 50, emissivity: 0.7, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  ALUMINUM: { rho: 2700, cp: 900, k: 200, emissivity: 0.1, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  GLASS: { rho: 2500, cp: 840, k: 1.0, emissivity: 0.9, waterCapacity_kg_per_kg: 0.02, shapeFactor: 6 },
-  POLYPROPYLENE: { rho: 905, cp: 1920, k: 0.2, emissivity: 0.9, waterCapacity_kg_per_kg: 0.05, shapeFactor: 6 },
-  PEEK: { rho: 1300, cp: 1340, k: 0.25, emissivity: 0.9, waterCapacity_kg_per_kg: 0.05, shapeFactor: 6 },
-  SILICONE: { rho: 1200, cp: 1300, k: 0.2, emissivity: 0.9, waterCapacity_kg_per_kg: 0.1, shapeFactor: 6 },
-  COTTON_TEXTILE: { rho: 400, cp: 1400, k: 0.04, emissivity: 0.8, waterCapacity_kg_per_kg: 0.6, shapeFactor: 10 },
+  STAINLESS_316: {
+    rho: 8000,
+    cp: 500,
+    k: 16,
+    emissivity: 0.5,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  CARBON_STEEL: {
+    rho: 7870,
+    cp: 460,
+    k: 50,
+    emissivity: 0.7,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  ALUMINUM: {
+    rho: 2700,
+    cp: 900,
+    k: 200,
+    emissivity: 0.1,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  GLASS: {
+    rho: 2500,
+    cp: 840,
+    k: 1.0,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.02,
+    shapeFactor: 6,
+  },
+  POLYPROPYLENE: {
+    rho: 905,
+    cp: 1920,
+    k: 0.2,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.05,
+    shapeFactor: 6,
+  },
+  PEEK: {
+    rho: 1300,
+    cp: 1340,
+    k: 0.25,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.05,
+    shapeFactor: 6,
+  },
+  SILICONE: {
+    rho: 1200,
+    cp: 1300,
+    k: 0.2,
+    emissivity: 0.9,
+    waterCapacity_kg_per_kg: 0.1,
+    shapeFactor: 6,
+  },
+  COTTON_TEXTILE: {
+    rho: 400,
+    cp: 1400,
+    k: 0.04,
+    emissivity: 0.8,
+    waterCapacity_kg_per_kg: 0.6,
+    shapeFactor: 10,
+  },
 } as const satisfies Record<string, MaterialProps>;
 
 export type MaterialName = keyof typeof MATERIALS;
@@ -193,6 +259,7 @@ git commit -m "feat(physics): add material registry + estimateArea"
 ## Task 3: `load.ts` — tipos + `load_step` N-nós (núcleo)
 
 **Files:**
+
 - Modify: `packages/physics/src/load.ts` (reescrever)
 - Test: `packages/physics/test/load.test.ts` (reescrever)
 
@@ -209,13 +276,22 @@ const P: LoadParams = { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 };
 
 function envAt(opts: Partial<LoadEnv>): LoadEnv {
   return {
-    T_gas: C_to_K(134), rho_gas: 0.6, rho_gas_atm: 0.6,
-    T_jacket: C_to_K(134), p_sat_at: p_sat_water, p_vap_chamber: p_sat_water(C_to_K(134)),
-    chamber_has_vapor: true, ...opts,
+    T_gas: C_to_K(134),
+    rho_gas: 0.6,
+    rho_gas_atm: 0.6,
+    T_jacket: C_to_K(134),
+    p_sat_at: p_sat_water,
+    p_vap_chamber: p_sat_water(C_to_K(134)),
+    chamber_has_vapor: true,
+    ...opts,
   };
 }
 function oneNode(over: Partial<LoadState['nodes'][0]> = {}): LoadState {
-  return { nodes: [{ name: 'n', material: 'STAINLESS_316', mass_kg: 1, T: C_to_K(134), m_water: 0, ...over }] };
+  return {
+    nodes: [
+      { name: 'n', material: 'STAINLESS_316', mass_kg: 1, T: C_to_K(134), m_water: 0, ...over },
+    ],
+  };
 }
 
 describe('load_step', () => {
@@ -377,7 +453,10 @@ const DEFAULT_ITEMS: LoadItemConfig[] = [
 
 /** Constrói o LoadState a partir de itens de config; carga-default quando ausente;
  *  injeta um nó testemunho se nenhum item o for. */
-export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K: number): LoadState {
+export function buildLoadState(
+  items: LoadItemConfig[] | undefined,
+  T_ambient_K: number,
+): LoadState {
   const src = items && items.length > 0 ? items : DEFAULT_ITEMS;
   const nodes: LoadNode[] = src.map((it, i) => ({
     name: it.name ?? `item-${i}`,
@@ -388,7 +467,14 @@ export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K:
     isWitness: it.witness ?? false,
   }));
   if (!nodes.some((n) => n.isWitness)) {
-    nodes.push({ name: 'testemunho', material: 'COTTON_TEXTILE', mass_kg: 0.05, T: T_ambient_K, m_water: 0, isWitness: true });
+    nodes.push({
+      name: 'testemunho',
+      material: 'COTTON_TEXTILE',
+      mass_kg: 0.05,
+      T: T_ambient_K,
+      m_water: 0,
+      isWitness: true,
+    });
   }
   return { nodes };
 }
@@ -411,6 +497,7 @@ git commit -m "feat(physics): rewrite load.ts as N-node model with condensation/
 ## Task 4: `buildLoadState` — testes de config
 
 **Files:**
+
 - Test: `packages/physics/test/load.test.ts` (adicionar)
 
 - [ ] **Step 1: Adicionar testes**
@@ -432,7 +519,10 @@ describe('buildLoadState', () => {
     expect(st.nodes.filter((n) => n.isWitness)).toHaveLength(1);
   });
   it('honors an explicit witness and initial temperature', () => {
-    const st = buildLoadState([{ material: 'GLASS', mass_kg: 1, initial_T_C: 30, witness: true }], C_to_K(22));
+    const st = buildLoadState(
+      [{ material: 'GLASS', mass_kg: 1, initial_T_C: 30, witness: true }],
+      C_to_K(22),
+    );
     expect(st.nodes).toHaveLength(1);
     expect(st.nodes[0]!.isWitness).toBe(true);
     expect(st.nodes[0]!.T).toBeCloseTo(C_to_K(30), 6);
@@ -457,6 +547,7 @@ git commit -m "test(physics): cover buildLoadState defaults + witness injection"
 ## Task 5: `chamber.ts` — acoplamento parede∝densidade
 
 **Files:**
+
 - Modify: `packages/physics/src/chamber.ts` (interface `ChamberFluxes` + uso do `wall_h`)
 - Test: `packages/physics/test/chamber.test.ts` (adicionar caso)
 
@@ -464,13 +555,35 @@ git commit -m "test(physics): cover buildLoadState defaults + witness injection"
 
 ```ts
 // append em packages/physics/test/chamber.test.ts
-import { chamber_step, type ChamberState, type ChamberParams, type ChamberFluxes } from '../src/chamber.js';
+import {
+  chamber_step,
+  type ChamberState,
+  type ChamberParams,
+  type ChamberFluxes,
+} from '../src/chamber.js';
 import { C_to_K } from '../src/constants.js';
 
 describe('wall coupling scales with gas density', () => {
-  const p: ChamberParams = { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
-  const base: ChamberState = { m_air: 1e-5, m_vap: 1e-4, m_liq: 0, T: C_to_K(60), T_wall: C_to_K(140) };
-  const noFlow: ChamberFluxes = { inflow: { air: 0, vap: 0, liq: 0 }, inflow_T: base.T, outflow: { air: 0, vap: 0, liq: 0 }, Q_external: 0 };
+  const p: ChamberParams = {
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
+  };
+  const base: ChamberState = {
+    m_air: 1e-5,
+    m_vap: 1e-4,
+    m_liq: 0,
+    T: C_to_K(60),
+    T_wall: C_to_K(140),
+  };
+  const noFlow: ChamberFluxes = {
+    inflow: { air: 0, vap: 0, liq: 0 },
+    inflow_T: base.T,
+    outflow: { air: 0, vap: 0, liq: 0 },
+    Q_external: 0,
+  };
 
   it('with scale≈0 the near-vacuum gas barely tracks the hot wall', () => {
     const full = chamber_step(base, p, { ...noFlow, wall_coupling_scale: 1 }, 0.05);
@@ -489,6 +602,7 @@ Expected: FAIL (campo `wall_coupling_scale` inexistente / sem efeito).
 - [ ] **Step 3: Implementar**
 
 Em `packages/physics/src/chamber.ts`, adicionar campo à interface `ChamberFluxes`:
+
 ```ts
 export interface ChamberFluxes {
   inflow: SpeciesFlow;
@@ -499,12 +613,15 @@ export interface ChamberFluxes {
   wall_coupling_scale?: number;
 }
 ```
+
 Na secção "3.2. Wall thermal mass coupling", trocar a leitura de `wall_h`:
+
 ```ts
-  const wall_mass = p.wall_mass_kg ?? 0;
-  const wall_cp = p.wall_cp_J_per_kg_K ?? 500;
-  const wall_h = (p.wall_h_W_per_K ?? 200) * (f.wall_coupling_scale ?? 1);
+const wall_mass = p.wall_mass_kg ?? 0;
+const wall_cp = p.wall_cp_J_per_kg_K ?? 500;
+const wall_h = (p.wall_h_W_per_K ?? 200) * (f.wall_coupling_scale ?? 1);
 ```
+
 (o resto do bloco de acoplamento fica igual, já usa `wall_h`.)
 
 - [ ] **Step 4: Correr — passa**
@@ -524,6 +641,7 @@ git commit -m "feat(physics): scale chamber wall↔gas coupling by gas density"
 ## Task 6: `integrator.ts` — ligar carga N-nós + conservação + F0 witness
 
 **Files:**
+
 - Modify: `packages/physics/src/integrator.ts`
 - Test: `packages/physics/test/integrator/drying.test.ts` (criar)
 
@@ -539,8 +657,20 @@ import { C_to_K, R_AIR, R_VAP, P_ATM, GAMMA_VAP, GAMMA_AIR } from '../../src/con
 
 function params(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: null,
     load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
@@ -558,7 +688,13 @@ function wetHotState(p: SystemParams): SystemState {
   load.nodes[0]!.m_water = 0.2; // carga encharcada
   return {
     chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0, T, T_wall: T },
-    jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
+    jacket: {
+      m_air: 0,
+      m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)),
+      m_liq: 0,
+      T: C_to_K(140),
+      T_wall: C_to_K(140),
+    },
     generator: null,
     load,
     f0_minutes: 0,
@@ -589,74 +725,81 @@ Expected: FAIL (assinatura antiga de `SystemParams.load`/`SystemState.load` + `l
 - [ ] **Step 3: Implementar alterações no `integrator.ts`**
 
 3a. Imports:
+
 ```ts
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { p_sat_water } from './saturation.js';
 import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF } from './constants.js';
 ```
+
 (`LoadState`/`LoadParams` já vêm de load.js; `SystemState.load: LoadState` e `SystemParams.load: LoadParams` mantêm o nome do campo, muda o tipo.)
 
 3b. Substituir o bloco "Load step" (linhas ~217-219) por:
+
 ```ts
-  // Densidade do gás da câmara p/ escalar convecção (∝ ρ)
-  const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
-  const p_vap_chamber = chamber_pressure(state.chamber, params.chamber).p_vap;
-  const loadResult = load_step(
-    state.load,
-    params.load,
-    {
-      T_gas: state.chamber.T,
-      rho_gas: rho_gas_chamber,
-      rho_gas_atm: RHO_GAS_ATM_REF,
-      T_jacket: state.jacket.T,
-      p_sat_at: p_sat_water,
-      p_vap_chamber,
-      chamber_has_vapor: state.chamber.m_vap > 0,
-    },
-    dt,
-  );
-  const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
+// Densidade do gás da câmara p/ escalar convecção (∝ ρ)
+const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
+const p_vap_chamber = chamber_pressure(state.chamber, params.chamber).p_vap;
+const loadResult = load_step(
+  state.load,
+  params.load,
+  {
+    T_gas: state.chamber.T,
+    rho_gas: rho_gas_chamber,
+    rho_gas_atm: RHO_GAS_ATM_REF,
+    T_jacket: state.jacket.T,
+    p_sat_at: p_sat_water,
+    p_vap_chamber,
+    chamber_has_vapor: state.chamber.m_vap > 0,
+  },
+  dt,
+);
+const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
 ```
 
 3c. Injetar a água carga↔câmara no acumulador da câmara (antes de montar `chamberFluxes`):
+
 ```ts
-  // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai)
-  if (loadResult.vaporToChamber_kg > 0) {
-    acc.chamber.vap_in += loadResult.vaporToChamber_kg;
-    acc.chamber.inflow_T_weighted += loadResult.vaporToChamber_kg * state.chamber.T;
-    acc.chamber.inflow_T_mass += loadResult.vaporToChamber_kg;
-  } else if (loadResult.vaporToChamber_kg < 0) {
-    acc.chamber.vap_out += -loadResult.vaporToChamber_kg;
-  }
+// Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai)
+if (loadResult.vaporToChamber_kg > 0) {
+  acc.chamber.vap_in += loadResult.vaporToChamber_kg;
+  acc.chamber.inflow_T_weighted += loadResult.vaporToChamber_kg * state.chamber.T;
+  acc.chamber.inflow_T_mass += loadResult.vaporToChamber_kg;
+} else if (loadResult.vaporToChamber_kg < 0) {
+  acc.chamber.vap_out += -loadResult.vaporToChamber_kg;
+}
 ```
 
 3d. `chamberFluxes.wall_coupling_scale` + Q_external (radiação NÃO passa pelo gás):
+
 ```ts
-  const chamberFluxes: ChamberFluxes = {
-    inflow: speciesIn(acc.chamber),
-    inflow_T: inflowT(acc.chamber, state.chamber.T),
-    outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load + Q_jacket_to_chamber,
-    wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
-  };
+const chamberFluxes: ChamberFluxes = {
+  inflow: speciesIn(acc.chamber),
+  inflow_T: inflowT(acc.chamber, state.chamber.T),
+  outflow: speciesOut(acc.chamber),
+  Q_external: -Q_load + Q_jacket_to_chamber,
+  wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
+};
 ```
 
 3e. Jaqueta perde o Q_rad emitido p/ a carga:
+
 ```ts
-  const jacketFluxes: ChamberFluxes = {
-    inflow: speciesIn(acc.jacket),
-    inflow_T: inflowT(acc.jacket, state.jacket.T),
-    outflow: speciesOut(acc.jacket),
-    Q_external: -Q_jacket_to_chamber - loadResult.Q_rad_from_jacket,
-  };
+const jacketFluxes: ChamberFluxes = {
+  inflow: speciesIn(acc.jacket),
+  inflow_T: inflowT(acc.jacket, state.jacket.T),
+  outflow: speciesOut(acc.jacket),
+  Q_external: -Q_jacket_to_chamber - loadResult.Q_rad_from_jacket,
+};
 ```
 
 3f. F0 no nó testemunho (substituir bloco linhas ~256-259):
+
 ```ts
-  const witness = loadResult.next.nodes.find((n) => n.isWitness) ?? loadResult.next.nodes[0];
-  const f0 = new F0Accumulator();
-  f0.value_minutes = state.f0_minutes;
-  if (witness) f0.step(witness.T, dt);
+const witness = loadResult.next.nodes.find((n) => n.isWitness) ?? loadResult.next.nodes[0];
+const f0 = new F0Accumulator();
+f0.value_minutes = state.f0_minutes;
+if (witness) f0.step(witness.T, dt);
 ```
 
 - [ ] **Step 4: Correr — passa**
@@ -676,6 +819,7 @@ git commit -m "feat(physics): wire N-node load into integrator (density-scaled c
 ## Task 7: `cli.ts` — config `load` como lista + retro-compat + trace pelo witness
 
 **Files:**
+
 - Modify: `packages/physics/src/cli.ts`
 - Test: `packages/physics/test/cli-load.test.ts` (criar)
 
@@ -712,6 +856,7 @@ Expected: FAIL (`resolveLoadItems` inexistente).
 - [ ] **Step 3: Implementar em `cli.ts`**
 
 3a. Ajustar tipo do cenário (`equipment.load` aceita lista OU legado):
+
 ```ts
 import { buildLoadState, type LoadItemConfig } from './load.js';
 // ...
@@ -722,6 +867,7 @@ import { buildLoadState, type LoadItemConfig } from './load.js';
 ```
 
 3b. Exportar o resolvedor (retro-compat):
+
 ```ts
 export function resolveLoadItems(
   load: LoadItemConfig[] | { metal_kg: number; fabric_kg: number } | undefined,
@@ -736,22 +882,27 @@ export function resolveLoadItems(
 ```
 
 3c. Em `makeParams`, trocar o `load: {...}` antigo por coeficientes globais:
+
 ```ts
     load: { h0_conv: H0_CONV_DEFAULT, k_cond: K_COND_DEFAULT, k_ev: K_EV_DEFAULT },
 ```
+
 (importar `H0_CONV_DEFAULT, K_COND_DEFAULT, K_EV_DEFAULT` de `./constants.js`.)
 
 3d. Em `makeInitialState`, substituir `load: { T_metal, T_fabric }` por:
+
 ```ts
     load: buildLoadState(resolveLoadItems(eq.load), T_ambient),
 ```
 
 3e. No trace, `T_test` passa a vir do nó witness:
+
 ```ts
         T_test_C: K_to_C(
           (state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T,
         ),
 ```
+
 (e nas duas linhas de `console.log` finais que usavam `state.load.T_fabric`, usar a mesma expressão.)
 
 - [ ] **Step 4: Correr — passa**
@@ -776,6 +927,7 @@ git commit -m "feat(physics): cli load as item list with legacy mapping + witnes
 ## Task 8: Exportar `materials` no index
 
 **Files:**
+
 - Modify: `packages/physics/src/index.ts`
 
 - [ ] **Step 1: Adicionar export**
@@ -783,6 +935,7 @@ git commit -m "feat(physics): cli load as item list with legacy mapping + witnes
 ```ts
 export * from './materials.js';
 ```
+
 (e garantir que `load.js` exports novos tipos já estão reexportados; adicionar se em falta.)
 
 - [ ] **Step 2: Typecheck**
@@ -802,6 +955,7 @@ git commit -m "chore(physics): export materials from package index"
 ## Task 9: Regressão física — ajustar cenários/testes existentes
 
 **Files:**
+
 - Modify: testes de cenário existentes em `packages/physics/test/**` que assumem a carga antiga.
 
 - [ ] **Step 1: Correr toda a suite physics**
@@ -812,6 +966,7 @@ Expected: falhas apenas em testes que (a) usam `params.load` antigo `{m_metal,..
 - [ ] **Step 2: Corrigir chamadas de API antigas**
 
 Para cada teste que constrói `SystemParams`/`SystemState` à mão:
+
 - `load` params → `{ h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 }`.
 - estado inicial `load` → `buildLoadState(undefined, T_ambient)` (ou lista explícita).
 - leituras `state.load.T_fabric` → `state.load.nodes.find(n=>n.isWitness)!.T`.
@@ -837,6 +992,7 @@ git commit -m "test(physics): migrate existing scenarios to N-node load API"
 ## Task 10: `apps/web` — schema `load` + runtime + snapshot
 
 **Files:**
+
 - Modify: `apps/web/server/virtual-plc/cycle-config.ts`
 - Modify: `apps/web/server/runtime/singleton.ts`
 - Modify: `apps/web/server/runtime/snapshot.ts`
@@ -851,20 +1007,35 @@ import { getRuntime, resetRuntime } from '../../server/runtime/singleton.js';
 import { CycleConfigSchema } from '../../server/virtual-plc/cycle-config.js';
 
 const base = {
-  name: 't', sterilization_T_C: 134, sterilization_P_bar: 3.04, hold_duration_s: 60,
-  prevac_pulses: 0, prevac_vacuum_target_bar: 0.2, prevac_steam_target_bar: 2,
-  preheat_duration_s: 10, dry_duration_s: 60, f0_target_min: 1,
+  name: 't',
+  sterilization_T_C: 134,
+  sterilization_P_bar: 3.04,
+  hold_duration_s: 60,
+  prevac_pulses: 0,
+  prevac_vacuum_target_bar: 0.2,
+  prevac_steam_target_bar: 2,
+  preheat_duration_s: 10,
+  dry_duration_s: 60,
+  f0_target_min: 1,
 };
 
 describe('load config in cycle', () => {
   beforeEach(() => resetRuntime());
   it('accepts an optional load block', () => {
-    const c = CycleConfigSchema.parse({ ...base, load: [{ material: 'ALUMINUM', mass_kg: 3, witness: true }] });
+    const c = CycleConfigSchema.parse({
+      ...base,
+      load: [{ material: 'ALUMINUM', mass_kg: 3, witness: true }],
+    });
     expect(c.load).toHaveLength(1);
   });
   it('startCycle builds the load nodes from the cycle', () => {
     const r = getRuntime();
-    r.startCycle(CycleConfigSchema.parse({ ...base, load: [{ material: 'GLASS', mass_kg: 2, witness: true }] }));
+    r.startCycle(
+      CycleConfigSchema.parse({
+        ...base,
+        load: [{ material: 'GLASS', mass_kg: 2, witness: true }],
+      }),
+    );
     const witness = r.orchestrator.getState().load.nodes.find((n) => n.isWitness);
     expect(witness?.material).toBe('GLASS');
   });
@@ -889,8 +1060,14 @@ import { z } from 'zod';
 const LoadItemSchema = z.object({
   name: z.string().optional(),
   material: z.enum([
-    'STAINLESS_316', 'CARBON_STEEL', 'ALUMINUM', 'GLASS',
-    'POLYPROPYLENE', 'PEEK', 'SILICONE', 'COTTON_TEXTILE',
+    'STAINLESS_316',
+    'CARBON_STEEL',
+    'ALUMINUM',
+    'GLASS',
+    'POLYPROPYLENE',
+    'PEEK',
+    'SILICONE',
+    'COTTON_TEXTILE',
   ]),
   mass_kg: z.number().positive(),
   initial_T_C: z.number().optional(),
@@ -907,18 +1084,25 @@ export type CycleConfig = z.infer<typeof CycleConfigSchema>;
 - [ ] **Step 4: `singleton.ts` — nós default + startCycle constrói carga**
 
 4a. Import + reposição de estado:
+
 ```ts
 import { buildLoadState } from '@sim/physics';
 ```
+
 4b. Em `preheatedInitial`, trocar `load: { T_metal, T_fabric }` por:
+
 ```ts
     load: buildLoadState(undefined, C_to_K(22)),
 ```
+
 4c. `defaultParams().load` → coeficientes:
+
 ```ts
     load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
 ```
+
 4d. Em `startCycle(cycle)`, repor os nós da carga a partir do ciclo:
+
 ```ts
   startCycle(cycle: CycleConfig): void {
     this.plc = new VirtualPLC(cycle, this.bridge);
@@ -928,17 +1112,21 @@ import { buildLoadState } from '@sim/physics';
     this.orchestrator.setLoadState(buildLoadState(cycle.load, C_to_K(22)));
   }
 ```
+
 4e. Se `Orchestrator` não expõe `setLoadState`, adicionar um método que substitui `state.load` no seu estado interno (mutação mínima). Verificar `orchestrator.ts` e acrescentar:
+
 ```ts
   setLoadState(load: LoadState): void {
     this.state = { ...this.state, load };
   }
 ```
+
 (importar `LoadState` de `@sim/physics`.)
 
 - [ ] **Step 5: `snapshot.ts` — testemunho do witness**
 
 Trocar `testemunho_C: K_to_C(o.state.load.T_fabric)` por:
+
 ```ts
       testemunho_C: K_to_C(
         (o.state.load.nodes.find((n) => n.isWitness) ?? o.state.load.nodes[0]).T,
@@ -962,6 +1150,7 @@ git commit -m "feat(web): optional load config in cycle + build load nodes at cy
 ## Task 11: Regressão web + verificação end-to-end
 
 **Files:**
+
 - Modify: testes web existentes que leem `T_fabric`/`params.load` antigo.
 
 - [ ] **Step 1: Suite web completa**

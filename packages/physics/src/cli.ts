@@ -279,9 +279,7 @@ export function run(scenarioPath: string, outCsv: string): void {
         P_jacket_bar: Pa_to_bar(pj.p_total),
         P_gen_bar: Pa_to_bar(pg),
         T_chamber_C: K_to_C(state.chamber.T),
-        T_test_C: K_to_C(
-          (state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T,
-        ),
+        T_test_C: K_to_C((state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T),
         T_jacket_C: K_to_C(state.jacket.T),
         T_gen_C: state.generator ? K_to_C(state.generator.T) : 0,
         F0_min: state.f0_minutes,

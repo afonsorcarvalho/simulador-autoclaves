@@ -7,7 +7,7 @@
 
 ## 1. Problema
 
-Na secagem (EXHAUST→DRY) a pressão da câmara colapsa (3.04→0.01 bar) mas a temperatura fica presa em ~134 °C (câmara e testemunho). Causa: `load.ts` não modela humidade/evaporação/radiação e a convecção gás↔carga/parede é constante (não cai no vácuo), prendendo T. Fisicamente, a humidade residual na carga deve fazer *flash* ao baixar a pressão, roubar calor latente à carga e arrefecê-la; a jaqueta só repõe calor por radiação (sem gás → sem convecção). Ver teoria §§1–3.
+Na secagem (EXHAUST→DRY) a pressão da câmara colapsa (3.04→0.01 bar) mas a temperatura fica presa em ~134 °C (câmara e testemunho). Causa: `load.ts` não modela humidade/evaporação/radiação e a convecção gás↔carga/parede é constante (não cai no vácuo), prendendo T. Fisicamente, a humidade residual na carga deve fazer _flash_ ao baixar a pressão, roubar calor latente à carga e arrefecê-la; a jaqueta só repõe calor por radiação (sem gás → sem convecção). Ver teoria §§1–3.
 
 ## 2. Decisões (fechadas com o utilizador)
 
@@ -22,60 +22,90 @@ Na secagem (EXHAUST→DRY) a pressão da câmara colapsa (3.04→0.01 bar) mas a
 ## 3. Arquitetura — módulos e interfaces
 
 ### 3.1 Novo `packages/physics/src/materials.ts`
+
 ```ts
 export interface MaterialProps {
-  rho: number;                      // kg/m³
-  cp: number;                       // J/(kg·K)
-  k: number;                        // W/(m·K) — só p/ checagem de Biot
-  emissivity: number;               // 0..1
-  waterCapacity_kg_per_kg: number;  // condensado máx retido / kg seco
-  shapeFactor: number;              // A ≈ shapeFactor·(m/ρ)^(2/3)
+  rho: number; // kg/m³
+  cp: number; // J/(kg·K)
+  k: number; // W/(m·K) — só p/ checagem de Biot
+  emissivity: number; // 0..1
+  waterCapacity_kg_per_kg: number; // condensado máx retido / kg seco
+  shapeFactor: number; // A ≈ shapeFactor·(m/ρ)^(2/3)
 }
 export const MATERIALS = {
-  STAINLESS_316, CARBON_STEEL, ALUMINUM, GLASS,
-  POLYPROPYLENE, PEEK, SILICONE, COTTON_TEXTILE,
+  STAINLESS_316,
+  CARBON_STEEL,
+  ALUMINUM,
+  GLASS,
+  POLYPROPYLENE,
+  PEEK,
+  SILICONE,
+  COTTON_TEXTILE,
 } as const satisfies Record<string, MaterialProps>;
 export type MaterialName = keyof typeof MATERIALS;
 export function estimateArea(mass_kg: number, m: MaterialProps): number;
 ```
+
 Valores base: teoria §5.1.
 
 ### 3.2 `load.ts` (refatorado)
+
 ```ts
 export interface LoadNode {
   name: string;
   material: MaterialName;
   mass_kg: number;
-  T: number;            // K (estado)
-  m_water: number;      // kg (estado)
-  isWitness?: boolean;  // true = testemunho (referência p/ F0)
+  T: number; // K (estado)
+  m_water: number; // kg (estado)
+  isWitness?: boolean; // true = testemunho (referência p/ F0)
 }
-export interface LoadState { nodes: LoadNode[]; }
-export interface LoadParams { h0_conv: number; h_film: number; k_ev: number; }
+export interface LoadState {
+  nodes: LoadNode[];
+}
+export interface LoadParams {
+  h0_conv: number;
+  h_film: number;
+  k_ev: number;
+}
 export interface LoadEnv {
-  T_gas: number; rho_gas: number; rho_gas_atm: number;
-  T_jacket: number; p_sat_at: (T: number) => number; p_vap_chamber: number;
+  T_gas: number;
+  rho_gas: number;
+  rho_gas_atm: number;
+  T_jacket: number;
+  p_sat_at: (T: number) => number;
+  p_vap_chamber: number;
 }
 export interface LoadStepResult {
   next: LoadState;
-  Q_conv_from_gas: number;   // W, soma dos nós (retirado do gás)
+  Q_conv_from_gas: number; // W, soma dos nós (retirado do gás)
   Q_rad_from_jacket: number; // W, soma (retirado da jaqueta)
   vaporToChamber_kg: number; // Σ(evaporado − condensado) neste passo
 }
 export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): LoadStepResult;
 ```
+
 Builder partilhado (usado por CLI + web):
+
 ```ts
-export interface LoadItemConfig { name?: string; material: MaterialName; mass_kg: number; initial_T_C?: number; witness?: boolean; }
+export interface LoadItemConfig {
+  name?: string;
+  material: MaterialName;
+  mass_kg: number;
+  initial_T_C?: number;
+  witness?: boolean;
+}
 export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K: number): LoadState;
 ```
+
 - `items` ausente → carga-default `[STAINLESS_316 20 kg, COTTON_TEXTILE 5 kg witness]`.
 - Nenhum `witness` → injeta nó testemunho padrão.
 
 ### 3.3 `chamber.ts`
+
 `wall_h` efetivo ∝ densidade: `wall_h_eff = wall_h · (ρ_gas/ρ_gas_atm)`. Sem outra mudança estrutural.
 
 ### 3.4 `constants.ts`
+
 `SIGMA_SB = 5.670e-8`, `RHO_GAS_ATM_REF`, defaults `H0_CONV`, `H_FILM`, `K_EV`.
 
 ## 4. Fluxo de dados (`integrator.ts` `system_step`)
@@ -93,16 +123,19 @@ export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K:
 ## 5. Integração YAML + carga-default
 
 ### 5.1 Web (`apps/web`)
+
 - `CycleConfigSchema` ganha `load?: LoadItemConfig[]` (opcional, validado por zod).
 - `singleton.startCycle(cycle)` → `buildLoadState(cycle.load, T_amb)` e repõe `state.load` no arranque.
 - `defaultParams`/`preheatedInitial` migram p/ `{nodes}`.
 - `buildSnapshot`: `testemunho_C` = nó witness. (Temps por-nó no snapshot: fora de escopo.)
 
 ### 5.2 Physics CLI (`cli.ts`)
+
 - `equipment.load` aceita `LoadItemConfig[]`. Retro-compat: `{metal_kg, fabric_kg}` → `[STAINLESS_316 metal_kg, COTTON_TEXTILE fabric_kg witness]`.
 - `makeInitialState` usa `buildLoadState`.
 
 ### 5.3 Exemplo
+
 ```yaml
 load:
   - { material: STAINLESS_316, mass_kg: 20 }
@@ -115,6 +148,7 @@ load:
 **Unit `materials.ts`**: valores sãos (ε∈[0,1], ρ/cp>0); `estimateArea` monotónica na massa.
 
 **Unit `load.ts`** (um efeito por teste):
+
 - Condensação: `T_load<T_sat`, vapor → `m_water↑`, `T_load↑`, `vaporToChamber<0`.
 - Flash: `P<p_sat(T_load)`, `m_water>0` → `m_water↓`, `T_load↓`, `vaporToChamber>0`.
 - Auto-limite: com água, `T_load` estabiliza perto de `T_sat(P)`.
@@ -124,10 +158,12 @@ load:
 - Witness: F0 usa nó `isWitness`.
 
 **Integração — cenário de secagem** (fecha o bug §1):
+
 - 134 prevac. Fase DRY: `T_test` desce > 10 °C do pico; `m_water_load→0`; sem "134 °C @ 0.01 bar".
 - HOLD inalterado: `T_test` atinge 134 °C; **F0 ≥ 100**.
 
 **Regressão**:
+
 - ~68 testes atuais passam com carga-default; ajustar **tolerâncias** de timing onde a nova física desloca ligeiramente (não a asserção de fundo).
 - Cenário sem `load` → carga-default, corre.
 

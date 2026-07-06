@@ -93,7 +93,12 @@ describe('SnapshotPublisher', () => {
   });
 
   function running(elapsed: number): Snapshot {
-    return { ...dummy(elapsed), cycle_running: true, cycle_phase: 'HOLD', cycle_elapsed_s: elapsed };
+    return {
+      ...dummy(elapsed),
+      cycle_running: true,
+      cycle_phase: 'HOLD',
+      cycle_elapsed_s: elapsed,
+    };
   }
 
   it('history is empty while idle', () => {
