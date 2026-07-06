@@ -3,12 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, rmSync } from 'node:fs';
 import { getRuntime, resetRuntime } from '../../server/runtime/singleton.js';
-import {
-  applyOverrides,
-  applyOne,
-  resetAll,
-  currentValues,
-} from '../../server/knobs/store.js';
+import { applyOverrides, applyOne, resetAll, currentValues } from '../../server/knobs/store.js';
 
 // Fixed name (Date.now/Math.random unavailable in some harnesses; tests run serial).
 const FILE = join(tmpdir(), 'sim-knobs-test.json');

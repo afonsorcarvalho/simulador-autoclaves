@@ -42,7 +42,12 @@ export function applyOverrides(rt: Runtime, path = defaultOverridePath()): void 
 }
 
 /** Apply one knob, validate, mutate runtime, persist. */
-export function applyOne(rt: Runtime, id: string, value: number, path = defaultOverridePath()): void {
+export function applyOne(
+  rt: Runtime,
+  id: string,
+  value: number,
+  path = defaultOverridePath(),
+): void {
   validate(id, value);
   knobById(id)!.set(rt, value);
   const overrides = readFile(path);

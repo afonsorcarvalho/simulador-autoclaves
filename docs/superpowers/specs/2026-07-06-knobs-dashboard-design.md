@@ -12,13 +12,13 @@ ver a resposta do modelo enquanto se mexe nos knobs.
 
 ## Decisões (brainstorming)
 
-| Eixo | Decisão |
-|------|---------|
-| Escopo | 4 famílias: **cycle**, **plant**, **controller**, **time** |
-| Liveness | **plant/controller/time** aplicam live (ciclo a correr); **cycle** só pré-arranque (semeia PLC/load) |
-| Persistência | ficheiro override em disco (`apps/web/knobs.override.json`, gitignored) |
-| UI | página nova `/knobs`, agrupada por família |
-| Wiring | **registry declarativo** com acessoras `get/set` tipadas (não string-paths) |
+| Eixo         | Decisão                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| Escopo       | 4 famílias: **cycle**, **plant**, **controller**, **time**                                           |
+| Liveness     | **plant/controller/time** aplicam live (ciclo a correr); **cycle** só pré-arranque (semeia PLC/load) |
+| Persistência | ficheiro override em disco (`apps/web/knobs.override.json`, gitignored)                              |
+| UI           | página nova `/knobs`, agrupada por família                                                           |
+| Wiring       | **registry declarativo** com acessoras `get/set` tipadas (não string-paths)                          |
 
 ## Abordagem escolhida: registry declarativo
 
@@ -35,16 +35,16 @@ Fonte única. Cada descritor:
 
 ```ts
 interface KnobDescriptor {
-  id: string;                       // ex. 'plant.chamber.h_ambient'
+  id: string; // ex. 'plant.chamber.h_ambient'
   family: 'cycle' | 'plant' | 'controller' | 'time';
-  label: string;                    // rótulo UI
-  unit: string;                     // ex. 'bar', 'W/K', '×', 's'
+  label: string; // rótulo UI
+  unit: string; // ex. 'bar', 'W/K', '×', 's'
   default: number;
   min: number;
   max: number;
-  step?: number;                    // passo do number input (default 'any')
+  step?: number; // passo do number input (default 'any')
   timing: 'live' | 'precycle';
-  get(rt: Runtime): number;         // lê valor corrente
+  get(rt: Runtime): number; // lê valor corrente
   set(rt: Runtime, v: number): void; // escreve valor
 }
 ```
@@ -90,11 +90,11 @@ Novos campos no `Runtime`: `knobs: KnobStore`, `timeScale: number`, `controller:
 
 ### 4. API — `apps/web/app/api/knobs/`
 
-| Rota | Método | Corpo | Efeito |
-|------|--------|-------|--------|
-| `/api/knobs` | GET | — | `{ knobs: KnobDescriptor[], values: Record<id,number> }` (descritores sem as fns) |
-| `/api/knobs` | POST | `{ id, value }` | valida contra `min/max`; se `timing==='precycle'` e `cycle_running` → 409; aplica `set`; persiste |
-| `/api/knobs/reset` | POST | — | repõe defaults, apaga override file |
+| Rota               | Método | Corpo           | Efeito                                                                                            |
+| ------------------ | ------ | --------------- | ------------------------------------------------------------------------------------------------- |
+| `/api/knobs`       | GET    | —               | `{ knobs: KnobDescriptor[], values: Record<id,number> }` (descritores sem as fns)                 |
+| `/api/knobs`       | POST   | `{ id, value }` | valida contra `min/max`; se `timing==='precycle'` e `cycle_running` → 409; aplica `set`; persiste |
+| `/api/knobs/reset` | POST   | —               | repõe defaults, apaga override file                                                               |
 
 Validação: `id` existe, `value` finito e em `[min,max]` → senão 400.
 

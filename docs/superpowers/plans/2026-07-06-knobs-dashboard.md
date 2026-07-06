@@ -13,6 +13,7 @@
 ## Ficheiros
 
 **Novos:**
+
 - `apps/web/server/knobs/registry.ts` — descritores dos knobs + MVP.
 - `apps/web/server/knobs/store.ts` — load/save/apply/reset/currentValues (path injectável).
 - `apps/web/app/api/knobs/route.ts` — GET (descritores+valores), POST (set 1 knob).
@@ -23,6 +24,7 @@
 - Testes: `apps/web/test/knobs/registry.test.ts`, `apps/web/test/knobs/store.test.ts`, `apps/web/test/knobs/api.test.ts`.
 
 **Editados:**
+
 - `apps/web/server/runtime/singleton.ts` — campos `timeScale`, `controller`, `cycleOverride`; merge em `startCycle`; boot apply.
 - `apps/web/server/runtime/scheduler.ts` — lê `runtime.timeScale` (remove `ticks_per_wall`).
 - `apps/web/server/runtime/bootstrap.ts` — deixa de passar `ticks_per_wall`.
@@ -39,6 +41,7 @@
 Torna a velocidade de simulação um knob live: o scheduler passa a ler `runtime.timeScale` a cada firing em vez de uma constante capturada.
 
 **Files:**
+
 - Modify: `apps/web/server/runtime/singleton.ts`
 - Modify: `apps/web/server/runtime/scheduler.ts`
 - Modify: `apps/web/server/runtime/bootstrap.ts`
@@ -115,13 +118,13 @@ Expected: FAIL — `r.timeScale` não existe / `SchedulerOpts` ainda exige `tick
 Em `apps/web/server/runtime/singleton.ts`, na interface `Runtime` (a seguir a `params: SystemParams;`):
 
 ```ts
-  timeScale: number;
+timeScale: number;
 ```
 
 Na classe `RuntimeImpl`, a seguir a `params: SystemParams;`:
 
 ```ts
-  timeScale = 2;
+timeScale = 2;
 ```
 
 - [ ] **Step 4: Scheduler lê `runtime.timeScale`**
@@ -169,7 +172,7 @@ export function startScheduler(opts: SchedulerOpts): () => void {
 Em `apps/web/server/runtime/bootstrap.ts`, trocar a chamada:
 
 ```ts
-  const stop = startScheduler({ runtime, tick_wall_ms: 100 });
+const stop = startScheduler({ runtime, tick_wall_ms: 100 });
 ```
 
 - [ ] **Step 6: Correr testes**
@@ -191,6 +194,7 @@ git commit -m "feat(web): scheduler reads live runtime.timeScale (time-scale kno
 O controlador de referência passa a receber as bandas como argumentos (defaults 0.1/0.5), e o runtime guarda-as num objecto `controller` que a UI vai mexer live.
 
 **Files:**
+
 - Modify: `apps/web/server/virtual-plc/plc.ts`
 - Modify: `apps/web/server/runtime/singleton.ts`
 - Test: `apps/web/test/virtual-plc/plc.test.ts`
@@ -200,12 +204,12 @@ O controlador de referência passa a receber as bandas como argumentos (defaults
 Em `apps/web/test/virtual-plc/plc.test.ts`, dentro do `describe('chamber steam valve bang-bang', ...)`, acrescentar:
 
 ```ts
-  it('uses custom band offsets when provided', () => {
-    // band_low=1.0, band_high=2.0 → open below SP+1.0, close above SP+2.0
-    expect(chamberValveBangBang(134.9, SP, false, 1.0, 2.0)).toBe(true);
-    expect(chamberValveBangBang(136.1, SP, true, 1.0, 2.0)).toBe(false);
-    expect(chamberValveBangBang(135.5, SP, true, 1.0, 2.0)).toBe(true); // in band, hold
-  });
+it('uses custom band offsets when provided', () => {
+  // band_low=1.0, band_high=2.0 → open below SP+1.0, close above SP+2.0
+  expect(chamberValveBangBang(134.9, SP, false, 1.0, 2.0)).toBe(true);
+  expect(chamberValveBangBang(136.1, SP, true, 1.0, 2.0)).toBe(false);
+  expect(chamberValveBangBang(135.5, SP, true, 1.0, 2.0)).toBe(true); // in band, hold
+});
 ```
 
 - [ ] **Step 2: Correr — deve falhar**
@@ -260,19 +264,22 @@ Em `apps/web/server/runtime/singleton.ts`:
 Na interface `Runtime`, a seguir a `timeScale: number;`:
 
 ```ts
-  controller: { band_low: number; band_high: number };
+controller: {
+  band_low: number;
+  band_high: number;
+}
 ```
 
 Na classe `RuntimeImpl`, a seguir a `timeScale = 2;`:
 
 ```ts
-  controller = { band_low: 0.1, band_high: 0.5 };
+controller = { band_low: 0.1, band_high: 0.5 };
 ```
 
 No método `tick`, trocar a chamada `await this.plc.tick(t);` por:
 
 ```ts
-      await this.plc.tick(t, this.controller);
+await this.plc.tick(t, this.controller);
 ```
 
 - [ ] **Step 6: Correr testes**
@@ -294,6 +301,7 @@ git commit -m "feat(web): parametrize chamber bang-bang bands via runtime.contro
 Knobs de ciclo não mutam um ciclo a correr; escrevem em `rt.cycleOverride` e são mergidos sobre o YAML quando o ciclo arranca.
 
 **Files:**
+
 - Modify: `apps/web/server/runtime/singleton.ts`
 - Test: `apps/web/test/runtime/singleton.test.ts`
 
@@ -302,26 +310,26 @@ Knobs de ciclo não mutam um ciclo a correr; escrevem em `rt.cycleOverride` e s�
 Acrescentar a `apps/web/test/runtime/singleton.test.ts` (dentro do describe existente; se o import de `CycleConfig` faltar, adicionar `import type { CycleConfig } from '../../server/virtual-plc/cycle-config.js';`):
 
 ```ts
-  it('startCycle merges cycleOverride over the passed config', () => {
-    const r = getRuntime();
-    const cycle: CycleConfig = {
-      name: 'test',
-      sterilization_T_C: 134,
-      sterilization_P_bar: 3.04,
-      hold_duration_s: 420,
-      prevac_pulses: 3,
-      prevac_vacuum_target_bar: 0.15,
-      prevac_steam_target_bar: 2.0,
-      preheat_duration_s: 300,
-      dry_duration_s: 500,
-      f0_target_min: 100,
-    };
-    r.cycleOverride = { sterilization_T_C: 121, hold_duration_s: 900 };
-    r.startCycle(cycle);
-    expect(r.effectiveCycle?.sterilization_T_C).toBe(121);
-    expect(r.effectiveCycle?.hold_duration_s).toBe(900);
-    expect(r.effectiveCycle?.prevac_pulses).toBe(3); // não sobreposto
-  });
+it('startCycle merges cycleOverride over the passed config', () => {
+  const r = getRuntime();
+  const cycle: CycleConfig = {
+    name: 'test',
+    sterilization_T_C: 134,
+    sterilization_P_bar: 3.04,
+    hold_duration_s: 420,
+    prevac_pulses: 3,
+    prevac_vacuum_target_bar: 0.15,
+    prevac_steam_target_bar: 2.0,
+    preheat_duration_s: 300,
+    dry_duration_s: 500,
+    f0_target_min: 100,
+  };
+  r.cycleOverride = { sterilization_T_C: 121, hold_duration_s: 900 };
+  r.startCycle(cycle);
+  expect(r.effectiveCycle?.sterilization_T_C).toBe(121);
+  expect(r.effectiveCycle?.hold_duration_s).toBe(900);
+  expect(r.effectiveCycle?.prevac_pulses).toBe(3); // não sobreposto
+});
 ```
 
 - [ ] **Step 2: Correr — deve falhar**
@@ -336,8 +344,8 @@ Em `apps/web/server/runtime/singleton.ts`:
 Na interface `Runtime`, a seguir a `controller: ...`:
 
 ```ts
-  cycleOverride: Partial<CycleConfig>;
-  effectiveCycle: CycleConfig | null;
+cycleOverride: Partial<CycleConfig>;
+effectiveCycle: CycleConfig | null;
 ```
 
 Na classe `RuntimeImpl`, a seguir a `controller = ...`:
@@ -384,6 +392,7 @@ git commit -m "feat(web): startCycle merges runtime.cycleOverride over scenario 
 A fonte única. Descritores + o conjunto MVP com acessoras tipadas.
 
 **Files:**
+
 - Create: `apps/web/server/knobs/registry.ts`
 - Test: `apps/web/test/knobs/registry.test.ts`
 
@@ -747,6 +756,7 @@ git commit -m "feat(web): declarative knob registry with typed get/set accessors
 ## Task 5: Knob store (load/save/apply/reset, path injectável)
 
 **Files:**
+
 - Create: `apps/web/server/knobs/store.ts`
 - Test: `apps/web/test/knobs/store.test.ts`
 
@@ -760,12 +770,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, rmSync } from 'node:fs';
 import { getRuntime, resetRuntime } from '../../server/runtime/singleton.js';
-import {
-  applyOverrides,
-  applyOne,
-  resetAll,
-  currentValues,
-} from '../../server/knobs/store.js';
+import { applyOverrides, applyOne, resetAll, currentValues } from '../../server/knobs/store.js';
 
 // Fixed name (Date.now/Math.random unavailable in some harnesses; tests run serial).
 const FILE = join(tmpdir(), 'sim-knobs-test.json');
@@ -875,7 +880,12 @@ export function applyOverrides(rt: Runtime, path = defaultOverridePath()): void 
 }
 
 /** Apply one knob, validate, mutate runtime, persist. */
-export function applyOne(rt: Runtime, id: string, value: number, path = defaultOverridePath()): void {
+export function applyOne(
+  rt: Runtime,
+  id: string,
+  value: number,
+  path = defaultOverridePath(),
+): void {
   validate(id, value);
   knobById(id)!.set(rt, value);
   const overrides = readFile(path);
@@ -916,6 +926,7 @@ git commit -m "feat(web): knob store — load/apply/persist/reset with injectabl
 Aplicar overrides no arranque do runtime e ignorar o ficheiro.
 
 **Files:**
+
 - Modify: `apps/web/server/runtime/singleton.ts`
 - Modify: `apps/web/.gitignore` (criar se não existir)
 
@@ -930,13 +941,13 @@ import { applyOverrides } from '../knobs/store.js';
 No fim do `constructor()` de `RuntimeImpl`, a seguir a `void this.bridge.connect();`:
 
 ```ts
-    // Load persisted knob overrides on top of defaults. Safe: no MVP knob feeds the
-    // initial state (preheatedInitial reads only chamber.V, which is not a knob).
-    try {
-      applyOverrides(this as unknown as Runtime);
-    } catch (err) {
-      console.error('failed to apply knob overrides:', err);
-    }
+// Load persisted knob overrides on top of defaults. Safe: no MVP knob feeds the
+// initial state (preheatedInitial reads only chamber.V, which is not a knob).
+try {
+  applyOverrides(this as unknown as Runtime);
+} catch (err) {
+  console.error('failed to apply knob overrides:', err);
+}
 ```
 
 - [ ] **Step 2: `.gitignore`**
@@ -964,6 +975,7 @@ git commit -m "feat(web): apply persisted knob overrides on runtime boot; gitign
 ## Task 7: API routes
 
 **Files:**
+
 - Create: `apps/web/app/api/knobs/route.ts`
 - Create: `apps/web/app/api/knobs/reset/route.ts`
 - Test: `apps/web/test/knobs/api.test.ts`
@@ -1068,7 +1080,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
   if (typeof body.id !== 'string' || typeof body.value !== 'number') {
-    return NextResponse.json({ error: 'body must be { id: string, value: number }' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'body must be { id: string, value: number }' },
+      { status: 400 },
+    );
   }
   const knob = knobById(body.id);
   if (!knob) {
@@ -1124,6 +1139,7 @@ git commit -m "feat(web): /api/knobs GET/POST + reset (validation, 409 for precy
 ## Task 8: Cliente + página `/knobs` + nav
 
 **Files:**
+
 - Create: `apps/web/lib/knobs-api.ts`
 - Create: `apps/web/components/knobs/KnobPanel.tsx`
 - Create: `apps/web/app/knobs/page.tsx`
@@ -1247,9 +1263,7 @@ export function KnobPanel({ cycleRunning }: { cycleRunning: boolean }) {
         return (
           <Card key={fam} title={FAMILY_LABEL[fam]}>
             {disabled && (
-              <p className="text-yellow-400 text-sm mb-2">
-                Desativado enquanto um ciclo corre.
-              </p>
+              <p className="text-yellow-400 text-sm mb-2">Desativado enquanto um ciclo corre.</p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {items.map((k) => (
@@ -1305,8 +1319,8 @@ export default function KnobsPage() {
         <ConnectionIndicator connected={connected} />
       </div>
       <p className="text-slate-400 text-sm">
-        Parâmetros do emulador. Planta, controlador e tempo aplicam live; os de ciclo só com o
-        ciclo parado (semeiam o PLC ao arrancar). Persistem em disco.
+        Parâmetros do emulador. Planta, controlador e tempo aplicam live; os de ciclo só com o ciclo
+        parado (semeiam o PLC ao arrancar). Persistem em disco.
       </p>
       <KnobPanel cycleRunning={snapshot?.cycle_running ?? false} />
     </div>
@@ -1319,9 +1333,9 @@ export default function KnobsPage() {
 Em `apps/web/app/layout.tsx`, a seguir ao `<Link href="/virtual-plc" ...>`:
 
 ```tsx
-          <Link href="/knobs" className="hover:text-blue-400">
-            Knobs
-          </Link>
+<Link href="/knobs" className="hover:text-blue-400">
+  Knobs
+</Link>
 ```
 
 - [ ] **Step 5: Verificar build + lint + typecheck**
@@ -1361,4 +1375,7 @@ Mover a entrada de knobs para `## Feito` com data `2026-07-06`, via a skill `tod
 - **Ordem:** Tasks 1–3 preparam o runtime (time/controller/cycle) antes de existir registry — cada uma é um commit verde independente. Task 4 (registry) depende de os campos existirem. 5–7 empilham store→boot→API. 8 é a UI. Nenhuma task deixa a suite vermelha.
 - **Isolação:** o registry é o único sítio que conhece os caminhos internos do modelo; API, store e UI só falam ids. Adicionar knob futuro = 1 entrada no array + (se precisar) 1 campo runtime.
 - **Risco conhecido:** knobs que alimentem `preheatedInitial` (hoje só `chamber.V`, não exposto) teriam de ser aplicados antes da construção do estado inicial. Nenhum knob MVP o faz — documentado no comentário do boot.
+
+```
+
 ```
