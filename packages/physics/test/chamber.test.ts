@@ -86,6 +86,8 @@ describe('chamber_step — energy conservation (closed CV, latent reference)', (
     const E0 = chamberEnergy(s, wall_C);
     let cur = s;
     for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
+    expect(cur.m_vap).toBeGreaterThan(0.005); // evaporation actually occurred (from 0.001)
+    expect(cur.m_liq).toBeLessThan(s.m_liq);
     expect(chamberEnergy(cur, wall_C)).toBeCloseTo(E0, 2);
     expect(cur.m_vap + cur.m_liq).toBeCloseTo(0.021, 8);
   });

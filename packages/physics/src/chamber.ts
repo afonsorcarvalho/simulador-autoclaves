@@ -79,7 +79,7 @@ export function chamber_step(
   // 1. Provisional mass balance — clamp to zero to prevent negative masses.
   // Compute ACTUAL mass removed (capped at available) for energy accounting.
   // Cap at 50% of available mass per step to prevent discretization-driven over-evacuation
-  // that would produce H_out > U_old and drive U_new negative.
+  // that would produce H_out > U_old and drive U_gas negative.
   const dm_air_in = f.inflow.air * dt;
   const dm_vap_in = f.inflow.vap * dt;
   const dm_liq_in = f.inflow.liq * dt;
@@ -160,6 +160,7 @@ export function chamber_step(
     } else {
       let lo = T_MIN_K;
       let hi = T_MAX_K;
+      // 60 iterations → machine precision over the ~293 K bracket.
       for (let i = 0; i < 60; i++) {
         const mid = (lo + hi) / 2;
         if (energyAt(mid) < U) lo = mid;
@@ -202,7 +203,7 @@ export function chamber_step(
       // Move exactly the sensible energy the wall gained out of the gas internal energy,
       // so the latent-inclusive CV energy (gas + wall) is conserved by construction.
       U_gas -= gas_C * (T - T_new);
-      T = T_new;
+      // (T is re-derived from U_gas at the final equilibrium below; no need to set it here.)
     } else {
       // No gas mass — wall stays at previous temperature
       T_wall = s.T_wall ?? s.T;
