@@ -311,3 +311,35 @@ pressão parcial, floor de `p_vap`, bisecção do ponto fixo). SP-B constrói-se
 correta. **Caveat menor conhecido:** `chamber.ts:105` zera líquido a entrar na jaqueta enquanto `H_in`
 ainda conta `dm_liq_in·CP_LIQ·T` — fuga se alguma vez entrar líquido na jaqueta (não dispara hoje;
 jaqueta é alimentada a vapor).
+
+## 12. Controlo de temperatura da câmara — SP-B (2026-07-06)
+
+Objetivo: manter a temperatura da câmara na banda EN 285 (setpoint..setpoint+3 °C) no HOLD.
+Spec/plano: `docs/superpowers/{specs,plans}/2026-07-06-chamber-temperature-control*`.
+
+**Arquitetura (emulador HIL):** o emulador é a **planta**; o controlo é **externo** (PLC real via
+Modbus, SP5). O bang-bang aqui é um **controlador de referência** no virtual PLC (`plc.ts`),
+substituível pelo PLC real. A planta é agnóstica ao controlador.
+
+**Achado nuclear:** a temperatura da câmara = `T_sat(pressão da câmara)`. Sem vias de perda a câmara
+fixa-se em `T_sat(alívio)` e o controlo não a baixa (a calibração parede/jacket não move o equilíbrio —
+é o pin de saturação). Corrigido adicionando à planta:
+
+- **Perda ambiente** `chamber.h_ambient_W_per_K` (=10, calibração) — `Q_loss = h·(T−T_atm)`.
+- **Dreno de condensado** `chamber.drain_kg_per_s` (=2e-5) — trap passivo, remove líquido+entalpia.
+- **Alívio = teto de segurança** a **3.25 bar**: `T_sat(3.25)≈135.9 °C` fica sob o teto +3 (137). Este
+  é o ponto subtil — uma rajada de vapor satura a câmara **até à pressão de alívio**, por isso o alívio
+  fixa o tecto do overshoot; tem de estar sob o +3.
+
+**Controlador de referência** (`plc.ts`, `chamberValveBangBang`): abre `V_STEAM_IN_INT` quando
+`T<SP+0.1`, fecha quando `T>SP+0.5` (histerese), só no HOLD (PRESSURIZE fica full-open p/ come-up
+rápido). Lê `T_CHAMBER_INT`.
+
+**Resultado end-to-end** (`integration-ster-134`): câmara no HOLD em **[134.1, 136.4] °C** (dentro da
+banda EN 285; era ~145), F0≈101, queda na secagem presente, ciclo COMPLETE. Teste de controlabilidade
+da planta (`chamber-cooldown.test.ts`): câmara privada de vapor **cai abaixo do setpoint** (com perdas),
+provando que qualquer controlador a consegue regular.
+
+**Diferido:** alimentar a câmara do jacket (topologia mais fiel, tecto de fonte ≤ jacket) — a jaqueta
+pequena não sustenta a procura do come-up; a banda é mantida sem isso (controlador + perdas +
+alívio-tecto). Retomar com retuning do Cv de alimentação da jaqueta se se quiser a topologia real.

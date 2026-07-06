@@ -2,21 +2,14 @@
 
 ## Em curso
 
-- **SP-B — pin vapor-dominated da câmara** (câmara bifásica v2). Ramo `feat/chamber-two-phase`, sobre
-  a base de energia correta do SP-A. Objetivo: gás da câmara travado a `T_sat(P)` quando **dominado por
-  vapor** (não só com líquido presente — foi o defeito do 1º desenho: gated em `m_liq>0`, nunca disparava
-  no ciclo real → gás superaquecia +16 °C, sem queda na secagem, F0=10305). Requer os **4 guards** do
-  parecer do `physics-model-reviewer` (§11 do doc + spec `2026-07-05-chamber-two-phase-design.md` §Q5):
-  (1) só travar quando `T > T_sat(p_vap)`; (2) limiar de ar por **pressão parcial** `p_air < ~5% p_total`
-  (não razão de massa); (3) floor de `p_vap` (~1e4 Pa) p/ não reportar T absurda em vácuo profundo;
-  (4) bisecção do ponto fixo (não one-shot). **Aceitação (critério de norma, dado pelo user):** os
-  pontos de temperatura medidos na câmara **não podem ultrapassar +3 °C** acima do setpoint de
-  esterilização no plateau (banda EN 285 = 0 a +3 °C). Hoje (só SP-A, sem pin) a câmara chega a
-  ~145 °C no HOLD (>+10) — visto no dashboard. Também: gás saturado no HOLD (dT≈0), queda na secagem
-  visível, F0 de confiança (energia agora conserva). Fazer brainstorm→spec→plano próprio. Retomar o
-  alívio 3.2 bar (já committed) + migração de ~4 testes de comportamento (drying speed, wall-coupling).
+- (nada — SP-B concluído; próximo grande bloco é SP5 firmware ESP32, ver Pendente)
 
 ## Pendente
+
+- **SP-B follow-up (diferido):** alimentar a câmara **do jacket** (topologia real, tecto de fonte ≤
+  jacket) — a jaqueta pequena não sustenta a procura do come-up (estagna em PRESSURIZE). A banda EN 285
+  é mantida sem isso (controlador + perdas + alívio-tecto). Retomar com retuning do Cv de alimentação da
+  jaqueta se se quiser a topologia fiel. Ramo `feat/chamber-temp-control`.
 
 - Física — investigar achados do physics-model-reviewer (2026-07-03):
   - `generator.ts:57-68` — double-count de energia: `dm_vap = Q_in/h_vap` gasta todo Q_in em latente mas T também sobe pela curva sat → calor sensível nunca debitado (não-conservativo, só limitado pela válvula de alívio). Corrigir: dividir Q_in entre latente + sensível.
@@ -37,6 +30,16 @@
 
 ## Feito
 
+- 2026-07-06 — **SP-B — Controlo de temperatura da câmara (banda EN 285)** (ramo
+  `feat/chamber-temp-control`). Emulador HIL: planta agnóstica ao controlador; o bang-bang é
+  controlador de **referência** no virtual PLC (substituível pelo PLC real via Modbus, SP5). Achado:
+  T_câmara = T_sat(P_câmara); sem vias de perda a câmara fixa-se em T_sat(alívio) e o controlo não a
+  baixa. Adicionado à planta: perda ambiente (`h_ambient_W_per_K`=10), dreno de condensado
+  (`drain_kg_per_s`=2e-5), alívio = **teto de segurança 3.25 bar** (T_sat≈135.9 sob o teto +3 — o
+  alívio fixa o tecto do overshoot). Controlador `chamberValveBangBang` (abrir<SP+0.1, fechar>SP+0.5,
+  só no HOLD; PRESSURIZE full-open p/ come-up). Resultado: câmara no HOLD em **[134.1, 136.4] °C**
+  (banda EN 285; era ~145), F0≈101, queda na secagem, ciclo COMPLETE. Detalhe §12 do doc de secagem.
+  Diferido: topologia câmara-do-jacket (jaqueta não sustenta come-up). NÃO merged em master ainda.
 - 2026-07-06 — **SP-A — Referência de entalpia comum (`u_fg0`)** (ramo `feat/chamber-two-phase`).
   Fundacional: o latente da água passa a viajar com a massa de vapor em todos os CVs. `U_FG0` +
   `energy.ts` (`vaporU`/`L_eff`); câmara+jaqueta resolvem T da energia total (latente incluído) por
