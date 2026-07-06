@@ -119,6 +119,7 @@ export interface Runtime {
   cycle_running: boolean;
   cycle_started_at_s: number;
   params: SystemParams;
+  timeScale: number;
   startCycle(cycle: CycleConfig): void;
   stopCycle(): void;
   tick(): Promise<void>;
@@ -132,6 +133,7 @@ class RuntimeImpl implements Runtime {
   cycle_running = false;
   cycle_started_at_s = 0;
   params: SystemParams;
+  timeScale = 2;
 
   constructor() {
     this.bridge = new VirtualEsp32Bridge();
