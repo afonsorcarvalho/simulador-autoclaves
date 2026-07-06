@@ -1,8 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { VirtualPLC } from '../../server/virtual-plc/plc.js';
+import { VirtualPLC, chamberValveBangBang } from '../../server/virtual-plc/plc.js';
 import type { CycleConfig } from '../../server/virtual-plc/cycle-config.js';
 import { RegisterAccess } from '../../server/bridge/register-access.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
+
+describe('chamber steam valve bang-bang', () => {
+  const SP = 134;
+  it('opens below SP+0.1', () => {
+    expect(chamberValveBangBang(133.9, SP, false)).toBe(true);
+    expect(chamberValveBangBang(134.05, SP, false)).toBe(true);
+  });
+  it('closes above SP+0.5', () => {
+    expect(chamberValveBangBang(134.6, SP, true)).toBe(false);
+  });
+  it('holds previous state in the hysteresis band [SP+0.1, SP+0.5]', () => {
+    expect(chamberValveBangBang(134.3, SP, true)).toBe(true); // was open → stay open
+    expect(chamberValveBangBang(134.3, SP, false)).toBe(false); // was closed → stay closed
+  });
+});
 
 function makeCycle(): CycleConfig {
   return {

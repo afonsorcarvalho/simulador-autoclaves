@@ -13,6 +13,7 @@ export type CyclePhase =
 
 export interface PLCSensors {
   P_chamber_bar: number;
+  T_chamber_C: number;
   T_test_C: number;
   P_jacket_bar: number;
   F0_min: number;
