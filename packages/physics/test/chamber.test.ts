@@ -68,12 +68,17 @@ describe('chamber_step — energy conservation (closed CV, latent reference)', (
   const wall_C = 50 * 500;
 
   it('conserves total energy when vapor condenses (no flows, no external Q)', () => {
-    const s: ChamberState = { m_air: 0, m_vap: 0.03, m_liq: 0, T: C_to_K(150), T_wall: C_to_K(150) };
+    // Supersaturated: at 70°C/V=0.15, m_vap_sat ≈ 0.029 kg, so the 0.05 kg vapor must
+    // condense (latent release warms the gas, so it settles partway). This genuinely
+    // exercises condensation → internal energy; a sub-saturated start would never condense.
+    const s: ChamberState = { m_air: 0, m_vap: 0.05, m_liq: 0, T: C_to_K(70), T_wall: C_to_K(70) };
     const E0 = chamberEnergy(s, wall_C);
     let cur = s;
     for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
+    expect(cur.m_liq).toBeGreaterThan(0); // condensation actually occurred
+    expect(cur.m_vap).toBeLessThan(s.m_vap);
     expect(chamberEnergy(cur, wall_C)).toBeCloseTo(E0, 2);
-    expect(cur.m_vap + cur.m_liq).toBeCloseTo(0.03, 8);
+    expect(cur.m_vap + cur.m_liq).toBeCloseTo(0.05, 8);
   });
 
   it('conserves total energy when liquid evaporates (sub-saturated, no flows)', () => {
