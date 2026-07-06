@@ -52,17 +52,25 @@ describe('global energy conservation (closed system, common reference)', () => {
     const E0 = totalEnergy(s);
     for (let i = 0; i < 400; i++) s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
     const E1 = totalEnergy(s);
-    const relDrift = Math.abs(E1 - E0) / Math.abs(E0); // observed ≈ 3.1e-5 (11.9 g condensed, load 100→104 °C)
+    const relDrift = Math.abs(E1 - E0) / Math.abs(E0);
+    // Mass that crossed the load↔chamber condensation boundary (where the gross latent bug lives).
+    const kgCondensed = s.load.nodes[0].m_water - w0;
+    const perKgErr = Math.abs(E1 - E0) / Math.max(kgCondensed, 1e-6); // J per kg of phase change
 
     // DYNAMICS GUARD — fails if the run went vacuous (nothing moved).
     expect(s.load.nodes[0].m_water).toBeGreaterThan(w0); // load wetted by condensation
     expect(s.load.nodes[0].T).toBeGreaterThan(T0); // load warmed toward chamber T
 
-    // Residual is the vapor-sensible-cooling SECOND-ORDER term: vapor at T_chamber condensing
-    // onto a node at T_node<T_chamber has its sensible cooling (T_ch→T_node) not fully credited —
-    // Q_comp_load uses T_chamber while L_eff uses T_node, leaving ~CV_VAP·(T_ch−T_node)·dm. Bounded,
-    // shrinks as the load warms. This is NOT the gross ~1.4 MJ/kg latent gap the old bug created
-    // (~1e5–1e6 J); the tolerance catches that while allowing the measured second-order residual.
+    // PRIMARY GUARD — throughput-independent per-kg energy balance at the condensation boundary.
+    // The gross bug (chamber debits sensible-only while load credits full latent) creates
+    // ~1.4 MJ/kg; the genuine second-order residual (vapor sensible cooling T_ch→T_node not fully
+    // credited: Q_comp_load uses T_ch, L_eff uses T_node) is ~CV_VAP·(T_ch−T_node) ≈ 42 kJ/kg at a
+    // 30 K gradient. 200 kJ/kg sits ~5× above the residual and ~7× below the gross bug, so it
+    // catches gross latent creation REGARDLESS of how little mass condenses (the +hv over-credit
+    // self-limits dep=q·dt/hv, so a relative-drift bound alone misses it).
+    expect(perKgErr).toBeLessThan(200e3);
+
+    // Secondary: relative drift stays tiny under real dynamics (observed ≈ 3.1e-5).
     expect(relDrift).toBeLessThan(1e-3);
   });
 });
