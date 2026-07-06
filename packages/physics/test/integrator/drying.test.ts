@@ -9,8 +9,20 @@ import { MATERIALS } from '../../src/materials.js';
 
 function params(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: null,
     load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
@@ -28,7 +40,13 @@ function wetHotState(_p: SystemParams): SystemState {
   load.nodes[0]!.m_water = 0.2; // carga encharcada
   return {
     chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0, T, T_wall: T },
-    jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
+    jacket: {
+      m_air: 0,
+      m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)),
+      m_liq: 0,
+      T: C_to_K(140),
+      T_wall: C_to_K(140),
+    },
     generator: null,
     load,
     f0_minutes: 0,
@@ -50,7 +68,13 @@ function undersaturatedWetHotState(): SystemState {
   load.nodes[0]!.m_water = 0.2; // carga encharcada, nó quente → evapora
   return {
     chamber: { m_air: 1e-6, m_vap: 0.05, m_liq: 0, T, T_wall: T }, // undersaturated: p_sat(134°C)≈3e5, p_vap≈0.6e5
-    jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
+    jacket: {
+      m_air: 0,
+      m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)),
+      m_liq: 0,
+      T: C_to_K(140),
+      T_wall: C_to_K(140),
+    },
     generator: null,
     load,
     f0_minutes: 0,
@@ -84,7 +108,13 @@ describe('load↔chamber condensation conserves energy exactly (closed, latent r
     const Tn = C_to_K(133);
     const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 50, witness: true }], Tn);
     let s: SystemState = {
-      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0, T, T_wall: T }, // saturated (V=0.15)
+      chamber: {
+        m_air: 1e-6,
+        m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T),
+        m_liq: 0,
+        T,
+        T_wall: T,
+      }, // saturated (V=0.15)
       jacket: { m_air: 0, m_vap: 0.001, m_liq: 0, T: Tn, T_wall: Tn }, // at node T → radiation ~0; decoupled (h_jc=0)
       generator: null,
       load,
@@ -132,14 +162,32 @@ describe('jacket conduction reaches the chamber wall, not the gas', () => {
     const T = C_to_K(134);
     const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], T);
     let s: SystemState = {
-      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0.05, T, T_wall: T },
-      jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
-      generator: null, load, f0_minutes: 0, time_s: 0,
+      chamber: {
+        m_air: 1e-6,
+        m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T),
+        m_liq: 0.05,
+        T,
+        T_wall: T,
+      },
+      jacket: {
+        m_air: 0,
+        m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)),
+        m_liq: 0,
+        T: C_to_K(140),
+        T_wall: C_to_K(140),
+      },
+      generator: null,
+      load,
+      f0_minutes: 0,
+      time_s: 0,
     };
     for (let i = 0; i < 400; i++) {
       s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
     }
-    const p_vap = Math.min((s.chamber.m_vap * R_VAP * s.chamber.T) / 0.15, p_sat_water(s.chamber.T));
+    const p_vap = Math.min(
+      (s.chamber.m_vap * R_VAP * s.chamber.T) / 0.15,
+      p_sat_water(s.chamber.T),
+    );
     expect(Math.abs(s.chamber.T - T_sat_water(p_vap))).toBeLessThan(3);
     expect(s.chamber.T).toBeLessThan(C_to_K(139));
   });

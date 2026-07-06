@@ -113,9 +113,7 @@ export function chamber_step(
     dm_vap_in * (CP_VAP * f.inflow_T + U_FG0) +
     dm_liq_in * CP_LIQ * f.inflow_T;
   const H_out =
-    dm_air_out * CP_AIR * s.T +
-    dm_vap_out * (CP_VAP * s.T + U_FG0) +
-    dm_liq_out * CP_LIQ * s.T;
+    dm_air_out * CP_AIR * s.T + dm_vap_out * (CP_VAP * s.T + U_FG0) + dm_liq_out * CP_LIQ * s.T;
   let U_gas = U_old + H_in - H_out + f.Q_external * dt;
 
   // Total water: the chamber path partitions this between vapor and liquid at equilibrium.

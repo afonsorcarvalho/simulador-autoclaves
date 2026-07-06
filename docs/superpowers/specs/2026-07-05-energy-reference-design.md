@@ -52,7 +52,7 @@ espécie:
 
 - ar: `u_air = CV_AIR · T`
 - líquido: `u_liq = CP_LIQ · T`
-- vapor: `u_vap = CV_VAP · T + u_fg0`   ← latente vive na energia
+- vapor: `u_vap = CV_VAP · T + u_fg0` ← latente vive na energia
 
 `u_fg0` é um **offset constante** de latente. O latente efetivo de condensação a T é
 `u_vap − u_liq = u_fg0 − (CP_LIQ − CV_VAP)·T` — **decresce com T automaticamente**, seguindo a
@@ -112,15 +112,15 @@ Cada seta transporta o latente **com** a massa. Nenhuma transferência de latent
 
 ## Ficheiros
 
-| Ficheiro | Mudança |
-|---|---|
-| `packages/physics/src/constants.ts` | `U_FG0` / `H_FG0` + referência documentada |
-| `packages/physics/src/chamber.ts` | `U`/transporte com latente; bloco de fase mass-only (bisecção); remover deposições de latente + floor |
-| `packages/physics/src/load.ts` | condensação/flash na referência comum |
-| `packages/physics/src/integrator.ts` | transporte de vapor entre CVs com latente; outflow do gerador etiquetado |
-| `packages/physics/src/generator.ts` | outflow de vapor na referência comum (interno inalterado) |
-| teste de conservação global (novo) | keystone |
-| migração de ~vários testes | expectativas de T corrigidas |
+| Ficheiro                             | Mudança                                                                                               |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `packages/physics/src/constants.ts`  | `U_FG0` / `H_FG0` + referência documentada                                                            |
+| `packages/physics/src/chamber.ts`    | `U`/transporte com latente; bloco de fase mass-only (bisecção); remover deposições de latente + floor |
+| `packages/physics/src/load.ts`       | condensação/flash na referência comum                                                                 |
+| `packages/physics/src/integrator.ts` | transporte de vapor entre CVs com latente; outflow do gerador etiquetado                              |
+| `packages/physics/src/generator.ts`  | outflow de vapor na referência comum (interno inalterado)                                             |
+| teste de conservação global (novo)   | keystone                                                                                              |
+| migração de ~vários testes           | expectativas de T corrigidas                                                                          |
 
 ## Fora de escopo
 

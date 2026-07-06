@@ -82,7 +82,13 @@ describe('chamber_step — energy conservation (closed CV, latent reference)', (
   });
 
   it('conserves total energy when liquid evaporates (sub-saturated, no flows)', () => {
-    const s: ChamberState = { m_air: 0, m_vap: 0.001, m_liq: 0.02, T: C_to_K(80), T_wall: C_to_K(80) };
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.001,
+      m_liq: 0.02,
+      T: C_to_K(80),
+      T_wall: C_to_K(80),
+    };
     const E0 = chamberEnergy(s, wall_C);
     let cur = s;
     for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
@@ -249,19 +255,29 @@ describe('chamber_step — jacket condensation releases latent heat', () => {
 
 describe('jacket_step — energy conservation with dripping condensate', () => {
   const jacket: ChamberParams = {
-    V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100,
+    V: 0.025,
+    allowLiquid: false,
+    wall_mass_kg: 15,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 100,
   };
   const wall_C = 15 * 500;
 
   it('condensing supersaturated vapor conserves energy: gas + wall + dripped condensate == start', () => {
     // Hot vapor supersaturated for this V, wall a bit cooler. Vapor condenses; condensate drips out.
     // m_vap_sat(140°C, 0.025 m³) ≈ 0.048 kg, so 0.06 kg IS supersaturated → condensation.
-    const s: ChamberState = { m_air: 0, m_vap: 0.06, m_liq: 0, T: C_to_K(140), T_wall: C_to_K(120) };
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.06,
+      m_liq: 0,
+      T: C_to_K(140),
+      T_wall: C_to_K(120),
+    };
     const gas0 = vaporU(s.m_vap, s.T);
     const wall0 = wall_C * s.T_wall!;
     const next = chamber_step(s, jacket, noFlux(s.T), 0.05);
     const drippedMass = s.m_vap - next.m_vap; // condensate that left (jacket keeps m_liq=0)
-    expect(next.m_liq).toBe(0);            // jacket drips: never retains liquid
+    expect(next.m_liq).toBe(0); // jacket drips: never retains liquid
     expect(drippedMass).toBeGreaterThan(0); // condensation actually happened (not vacuous)
     const gas1 = vaporU(next.m_vap, next.T);
     const wall1 = wall_C * next.T_wall!;
@@ -324,14 +340,27 @@ describe('chamber_step — wall thermal mass', () => {
 
 describe('chamber_step — Q_wall_external heats the wall', () => {
   const walled: ChamberParams = {
-    V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
   };
 
   it('external wall heat raises T_wall, not applied to the gas directly', () => {
-    const s: ChamberState = { m_air: 0.18, m_vap: 0, m_liq: 0, T: C_to_K(100), T_wall: C_to_K(100) };
+    const s: ChamberState = {
+      m_air: 0.18,
+      m_vap: 0,
+      m_liq: 0,
+      T: C_to_K(100),
+      T_wall: C_to_K(100),
+    };
     const f: ChamberFluxes = {
-      inflow: zeroFlow(), inflow_T: s.T, outflow: zeroFlow(),
-      Q_external: 0, Q_wall_external: 25000, // 25 kW into the 25 kJ/K wall → +1 K/s
+      inflow: zeroFlow(),
+      inflow_T: s.T,
+      outflow: zeroFlow(),
+      Q_external: 0,
+      Q_wall_external: 25000, // 25 kW into the 25 kJ/K wall → +1 K/s
     };
     const next = chamber_step(s, walled, f, 1);
     expect(next.T_wall!).toBeGreaterThan(s.T_wall!); // wall warmed
@@ -340,9 +369,26 @@ describe('chamber_step — Q_wall_external heats the wall', () => {
 });
 
 describe('wall coupling scales with gas density', () => {
-  const p: ChamberParams = { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
-  const base: ChamberState = { m_air: 1e-5, m_vap: 1e-4, m_liq: 0, T: C_to_K(60), T_wall: C_to_K(140) };
-  const noFlow: ChamberFluxes = { inflow: { air: 0, vap: 0, liq: 0 }, inflow_T: base.T, outflow: { air: 0, vap: 0, liq: 0 }, Q_external: 0 };
+  const p: ChamberParams = {
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
+  };
+  const base: ChamberState = {
+    m_air: 1e-5,
+    m_vap: 1e-4,
+    m_liq: 0,
+    T: C_to_K(60),
+    T_wall: C_to_K(140),
+  };
+  const noFlow: ChamberFluxes = {
+    inflow: { air: 0, vap: 0, liq: 0 },
+    inflow_T: base.T,
+    outflow: { air: 0, vap: 0, liq: 0 },
+    Q_external: 0,
+  };
 
   it('with scale≈0 the near-vacuum gas barely tracks the hot wall', () => {
     const full = chamber_step(base, p, { ...noFlow, wall_coupling_scale: 1 }, 0.05);
@@ -359,7 +405,11 @@ describe('wall coupling scales with gas density', () => {
 // under vacuum) survive the refactor and are kept as regression guards.
 describe('chamber_step — two-phase equilibrium', () => {
   const walled: ChamberParams = {
-    V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
   };
 
   it('conserves total water mass (m_vap + m_liq) across a step', () => {
@@ -381,7 +431,10 @@ describe('chamber_step — two-phase equilibrium', () => {
     const T = C_to_K(90);
     const s: ChamberState = { m_air: 1e-6, m_vap: 0.001, m_liq: 0.02, T, T_wall: T };
     const f: ChamberFluxes = {
-      inflow: zeroFlow(), inflow_T: T, outflow: { air: 0, vap: 0.01, liq: 0 }, Q_external: 0,
+      inflow: zeroFlow(),
+      inflow_T: T,
+      outflow: { air: 0, vap: 0.01, liq: 0 },
+      Q_external: 0,
     };
     let cur = s;
     for (let i = 0; i < 500; i++) cur = chamber_step(cur, walled, f, 0.05);

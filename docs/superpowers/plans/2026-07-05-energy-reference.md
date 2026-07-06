@@ -30,21 +30,22 @@ Because `CP_LIQ − CV_VAP = 2776 ≈ 2769` (the slope of `h_vap_water` per K), 
 
 ## File Structure
 
-| File | Responsibility | Change |
-|---|---|---|
-| `packages/physics/src/constants.ts` | SI constants | add `U_FG0`; document reference state |
-| `packages/physics/src/energy.ts` (**new**) | shared energy helpers | `vaporU`, `L_eff`, `chamberInternalEnergy` — one home for the reference so every CV agrees |
-| `packages/physics/src/chamber.ts` | chamber/jacket CV step | `U` + transport carry latent; phase block → mass-only bisection; delete latent-deposit/floor code |
-| `packages/physics/src/load.ts` | load nodes | condensation/flash latent on the common reference |
-| `packages/physics/src/integrator.ts` | system wiring | vapor transport between CVs carries latent; generator outflow tagged |
-| `packages/physics/src/generator.ts` | generator CV | outflow reference only (internal model unchanged) |
-| `packages/physics/test/energy-conservation.test.ts` (**new**) | keystone | closed-system + heater-input conservation |
+| File                                                          | Responsibility         | Change                                                                                            |
+| ------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `packages/physics/src/constants.ts`                           | SI constants           | add `U_FG0`; document reference state                                                             |
+| `packages/physics/src/energy.ts` (**new**)                    | shared energy helpers  | `vaporU`, `L_eff`, `chamberInternalEnergy` — one home for the reference so every CV agrees        |
+| `packages/physics/src/chamber.ts`                             | chamber/jacket CV step | `U` + transport carry latent; phase block → mass-only bisection; delete latent-deposit/floor code |
+| `packages/physics/src/load.ts`                                | load nodes             | condensation/flash latent on the common reference                                                 |
+| `packages/physics/src/integrator.ts`                          | system wiring          | vapor transport between CVs carries latent; generator outflow tagged                              |
+| `packages/physics/src/generator.ts`                           | generator CV           | outflow reference only (internal model unchanged)                                                 |
+| `packages/physics/test/energy-conservation.test.ts` (**new**) | keystone               | closed-system + heater-input conservation                                                         |
 
 ---
 
 ## Task 1: `U_FG0` constant + energy helpers
 
 **Files:**
+
 - Modify: `packages/physics/src/constants.ts`
 - Create: `packages/physics/src/energy.ts`
 - Test: `packages/physics/test/energy.test.ts` (new)
@@ -134,6 +135,7 @@ git commit -m "feat(physics): U_FG0 latent offset + energy reference helpers"
 ## Task 2: Chamber energy balance carries latent; phase change → mass-only bisection
 
 **Files:**
+
 - Modify: `packages/physics/src/chamber.ts` (energy balance §2-3; phase block §4)
 - Test: `packages/physics/test/chamber.test.ts`
 
@@ -155,12 +157,22 @@ function chamberEnergy(s: ChamberState, wall_C: number): number {
 
 describe('chamber_step — energy conservation (closed CV, latent reference)', () => {
   const walled: ChamberParams = {
-    V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
   };
   const wall_C = 50 * 500;
 
   it('conserves total energy when vapor condenses (no flows, no external Q)', () => {
-    const s: ChamberState = { m_air: 0, m_vap: 0.03, m_liq: 0, T: C_to_K(150), T_wall: C_to_K(150) };
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.03,
+      m_liq: 0,
+      T: C_to_K(150),
+      T_wall: C_to_K(150),
+    };
     const E0 = chamberEnergy(s, wall_C);
     let cur = s;
     for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
@@ -170,7 +182,13 @@ describe('chamber_step — energy conservation (closed CV, latent reference)', (
   });
 
   it('conserves total energy when liquid evaporates (sub-saturated, no flows)', () => {
-    const s: ChamberState = { m_air: 0, m_vap: 0.001, m_liq: 0.02, T: C_to_K(80), T_wall: C_to_K(80) };
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.001,
+      m_liq: 0.02,
+      T: C_to_K(80),
+      T_wall: C_to_K(80),
+    };
     const E0 = chamberEnergy(s, wall_C);
     let cur = s;
     for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
@@ -196,15 +214,13 @@ import { vaporU, L_eff } from './energy.js';
 Replace the `U_old`, `H_in`, `H_out` computations (currently ~lines 104-106) with latent-carrying versions:
 
 ```ts
-  const U_old = s.m_air * CV_AIR * s.T + vaporU(s.m_vap, s.T) + s.m_liq * CP_LIQ * s.T;
-  const H_in =
-    dm_air_in * CP_AIR * f.inflow_T +
-    dm_vap_in * (CP_VAP * f.inflow_T + U_FG0) +
-    dm_liq_in * CP_LIQ * f.inflow_T;
-  const H_out =
-    dm_air_out * CP_AIR * s.T +
-    dm_vap_out * (CP_VAP * s.T + U_FG0) +
-    dm_liq_out * CP_LIQ * s.T;
+const U_old = s.m_air * CV_AIR * s.T + vaporU(s.m_vap, s.T) + s.m_liq * CP_LIQ * s.T;
+const H_in =
+  dm_air_in * CP_AIR * f.inflow_T +
+  dm_vap_in * (CP_VAP * f.inflow_T + U_FG0) +
+  dm_liq_in * CP_LIQ * f.inflow_T;
+const H_out =
+  dm_air_out * CP_AIR * s.T + dm_vap_out * (CP_VAP * s.T + U_FG0) + dm_liq_out * CP_LIQ * s.T;
 ```
 
 Add `U_FG0` to the constants import at the top of chamber.ts.
@@ -214,53 +230,57 @@ Add `U_FG0` to the constants import at the top of chamber.ts.
 Remove the `U_floor`/`U_ceil` clamp block, the provisional-T solve, the §3.5 evaporation, and the entire §4 phase block **for the chamber path**. Replace with:
 
 ```ts
-  // Provisional internal energy after transport + external sensible heat (wall handled below).
-  const U_raw = U_old + H_in - H_out + f.Q_external * dt;
+// Provisional internal energy after transport + external sensible heat (wall handled below).
+const U_raw = U_old + H_in - H_out + f.Q_external * dt;
 
-  // Wall coupling (sensible, unchanged) runs first on a provisional gas T from a
-  // frozen-composition estimate, then the phase equilibrium re-solves T from U including latent.
-  // ... keep the existing §3.2 wall-coupling block, but drive it from a provisional T computed
-  //     with the CURRENT masses (frozen), i.e. T_prov = solveTfrozen(U_raw, m_air, m_vap, m_liq).
+// Wall coupling (sensible, unchanged) runs first on a provisional gas T from a
+// frozen-composition estimate, then the phase equilibrium re-solves T from U including latent.
+// ... keep the existing §3.2 wall-coupling block, but drive it from a provisional T computed
+//     with the CURRENT masses (frozen), i.e. T_prov = solveTfrozen(U_raw, m_air, m_vap, m_liq).
 
-  let T: number;
-  let m_vap_f = m_vap;
-  let m_liq_f = m_liq;
+let T: number;
+let m_vap_f = m_vap;
+let m_liq_f = m_liq;
 
-  if (p.allowLiquid) {
-    // Two-phase equilibrium: total water splits so vapor is saturated at T; solve T from U.
-    const m_w = m_vap + m_liq;
-    const energyAt = (Tc: number) => {
-      const mv = Math.min(m_w, (p_sat_water(Tc) * p.V) / (R_VAP * Tc));
-      const ml = m_w - mv;
-      return m_air * CV_AIR * Tc + vaporU(mv, Tc) + ml * CP_LIQ * Tc;
-    };
-    // Bisection on T in [T_MIN_K, T_MAX_K] to match U_raw (energyAt is monotonic increasing in T).
-    let lo = T_MIN_K, hi = T_MAX_K;
-    for (let i = 0; i < 60; i++) {
-      const mid = (lo + hi) / 2;
-      if (energyAt(mid) < U_raw) lo = mid; else hi = mid;
-    }
-    T = (lo + hi) / 2;
-    m_vap_f = Math.min(m_w, (p_sat_water(T) * p.V) / (R_VAP * T));
-    m_liq_f = m_w - m_vap_f;
-  } else {
-    // Jacket: vapor + air only, condensate drips out. Solve T with liquid removed each step.
-    // Single-phase sensible solve, then condense any supersaturation and drop the condensate.
-    const denom = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
-    T = denom > 0 ? (U_raw - m_vap * U_FG0 - /* liquid/air offsets already in U_raw */ 0) / denom : s.T;
-    // NOTE: implementer — derive the jacket T-solve so it is consistent with vaporU storage and
-    // drives the conservation test; then condense m_vap>m_vap_sat, drip the condensate out
-    // (m_liq=0), and credit the dripped liquid's enthalpy as leaving the CV. The jacket already
-    // deposited latent to the wall before; under the latent reference the condensation energy is
-    // in U, so route the sensible remainder to the wall via the existing coupling, and let the
-    // dripped condensate carry CP_LIQ·T out. Reconcile against the jacket conservation test in Task 4.
-    m_vap_f = m_vap; m_liq_f = 0;
+if (p.allowLiquid) {
+  // Two-phase equilibrium: total water splits so vapor is saturated at T; solve T from U.
+  const m_w = m_vap + m_liq;
+  const energyAt = (Tc: number) => {
+    const mv = Math.min(m_w, (p_sat_water(Tc) * p.V) / (R_VAP * Tc));
+    const ml = m_w - mv;
+    return m_air * CV_AIR * Tc + vaporU(mv, Tc) + ml * CP_LIQ * Tc;
+  };
+  // Bisection on T in [T_MIN_K, T_MAX_K] to match U_raw (energyAt is monotonic increasing in T).
+  let lo = T_MIN_K,
+    hi = T_MAX_K;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (energyAt(mid) < U_raw) lo = mid;
+    else hi = mid;
   }
+  T = (lo + hi) / 2;
+  m_vap_f = Math.min(m_w, (p_sat_water(T) * p.V) / (R_VAP * T));
+  m_liq_f = m_w - m_vap_f;
+} else {
+  // Jacket: vapor + air only, condensate drips out. Solve T with liquid removed each step.
+  // Single-phase sensible solve, then condense any supersaturation and drop the condensate.
+  const denom = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+  T =
+    denom > 0 ? (U_raw - m_vap * U_FG0 - /* liquid/air offsets already in U_raw */ 0) / denom : s.T;
+  // NOTE: implementer — derive the jacket T-solve so it is consistent with vaporU storage and
+  // drives the conservation test; then condense m_vap>m_vap_sat, drip the condensate out
+  // (m_liq=0), and credit the dripped liquid's enthalpy as leaving the CV. The jacket already
+  // deposited latent to the wall before; under the latent reference the condensation energy is
+  // in U, so route the sensible remainder to the wall via the existing coupling, and let the
+  // dripped condensate carry CP_LIQ·T out. Reconcile against the jacket conservation test in Task 4.
+  m_vap_f = m_vap;
+  m_liq_f = 0;
+}
 
-  if (!isFinite(T)) T = s.T;
-  T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
-  m_vap = m_vap_f;
-  m_liq = m_liq_f;
+if (!isFinite(T)) T = s.T;
+T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
+m_vap = m_vap_f;
+m_liq = m_liq_f;
 ```
 
 Then keep the existing wall-coupling block (§3.2) and the `Q_wall_external` block, but ensure they run against `T` and update `T`/`T_wall` sensibly (wall exchange is sensible only). Keep the relief block (§5).
@@ -284,6 +304,7 @@ git commit -m "feat(physics): chamber energy carries latent; phase change via ma
 ## Task 3: Load↔chamber condensation on the common reference
 
 **Files:**
+
 - Modify: `packages/physics/src/load.ts` (condensation/flash latent)
 - Test: `packages/physics/test/integrator/drying.test.ts` (closed chamber+load conservation)
 
@@ -314,18 +335,37 @@ describe('load↔chamber condensation conserves energy (closed, latent reference
     const p = params();
     p.valves = {}; // closed
     const T = C_to_K(134);
-    const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], C_to_K(100));
+    const load = buildLoadState(
+      [{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }],
+      C_to_K(100),
+    );
     // cold load in a saturated chamber → condensation onto the load
     let s: SystemState = {
-      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0, T, T_wall: T },
-      jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)), m_liq: 0, T: C_to_K(140), T_wall: C_to_K(140) },
-      generator: null, load, f0_minutes: 0, time_s: 0,
+      chamber: {
+        m_air: 1e-6,
+        m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T),
+        m_liq: 0,
+        T,
+        T_wall: T,
+      },
+      jacket: {
+        m_air: 0,
+        m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(140)),
+        m_liq: 0,
+        T: C_to_K(140),
+        T_wall: C_to_K(140),
+      },
+      generator: null,
+      load,
+      f0_minutes: 0,
+      time_s: 0,
     };
     // Isolate chamber+load: neutralize jacket conduction so only chamber↔load exchange moves energy.
     p.jacket_chamber_h_W_per_K = 0;
     const wall_C = 50 * 500;
     const E0 = systemWaterEnergy(s, wall_C);
-    for (let i = 0; i < 200; i++) s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    for (let i = 0; i < 200; i++)
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
     const E1 = systemWaterEnergy(s, wall_C);
     // Radiation to the load is the only other term; with jacket static and no valves, the
     // chamber↔load water/latent exchange must not create energy. Allow a small tolerance for
@@ -354,7 +394,7 @@ import { L_eff } from './energy.js';
 Replace the condensation/flash latent `hv = h_vap_water(node.T)` (line ~60) usage in the condensation and flash branches with `L_eff(node.T)` where the latent crosses the chamber boundary. Concretely, at line ~60 change:
 
 ```ts
-    const hv = L_eff(node.T); // common-reference latent so chamber↔load condensation conserves
+const hv = L_eff(node.T); // common-reference latent so chamber↔load condensation conserves
 ```
 
 (Keep the variable name `hv` to minimize churn; it now holds the common effective latent. Verify both the condensation branch, ~line 78-79, and the flash branch, ~line 92-94, use it.)
@@ -381,6 +421,7 @@ git commit -m "feat(physics): load condensation/flash on common latent reference
 ## Task 4: Jacket + generator outflow on the common reference
 
 **Files:**
+
 - Modify: `packages/physics/src/chamber.ts` (finish jacket T-solve from Task 2)
 - Modify: `packages/physics/src/integrator.ts` (generator vapor inflow enthalpy)
 - Test: `packages/physics/test/chamber.test.ts`, `packages/physics/test/integrator.test.ts`
@@ -392,19 +433,29 @@ Add to `packages/physics/test/chamber.test.ts`:
 ```ts
 describe('jacket_step — energy conservation with dripping condensate', () => {
   const jacket: ChamberParams = {
-    V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100,
+    V: 0.025,
+    allowLiquid: false,
+    wall_mass_kg: 15,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 100,
   };
   const wall_C = 15 * 500;
 
   it('condensing supersaturated vapor conserves energy: wall gain = latent, condensate leaves', () => {
     // Hot vapor supersaturated at a cool wall → condenses, drips out. Energy in the CV afterward
     // (gas + wall) plus the enthalpy carried out by the dripped condensate must equal the start.
-    const s: ChamberState = { m_air: 0, m_vap: 0.01, m_liq: 0, T: C_to_K(160), T_wall: C_to_K(120) };
+    const s: ChamberState = {
+      m_air: 0,
+      m_vap: 0.01,
+      m_liq: 0,
+      T: C_to_K(160),
+      T_wall: C_to_K(120),
+    };
     const gas0 = vaporU(s.m_vap, s.T);
     const wall0 = wall_C * s.T_wall!;
     const next = chamber_step(s, jacket, noFlux(s.T), 0.05);
     const drippedMass = s.m_vap - next.m_vap; // condensate that left (m_liq stays 0 for jacket)
-    const gas1 = vaporU(next.m_vap, next.T) ;
+    const gas1 = vaporU(next.m_vap, next.T);
     const wall1 = wall_C * next.T_wall!;
     const drippedEnthalpy = drippedMass * CP_LIQ * next.T; // liquid leaves at CV temperature
     expect(gas1 + wall1 + drippedEnthalpy).toBeCloseTo(gas0 + wall0, 1);
@@ -473,6 +524,7 @@ git commit -m "feat(physics): jacket condensate + generator outflow on common la
 ## Task 5: Global conservation keystone + full-suite migration
 
 **Files:**
+
 - Create: `packages/physics/test/energy-conservation.test.ts`
 - Migrate: any remaining failing tests across `packages/physics` and `apps/web`
 
@@ -490,8 +542,20 @@ import { C_to_K, R_VAP, CV_AIR, CP_LIQ, GAMMA_AIR, R_AIR } from '../src/constant
 
 function params(): SystemParams {
   return {
-    chamber: { V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 },
-    jacket: { V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100 },
+    chamber: {
+      V: 0.15,
+      allowLiquid: true,
+      wall_mass_kg: 50,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 200,
+    },
+    jacket: {
+      V: 0.025,
+      allowLiquid: false,
+      wall_mass_kg: 15,
+      wall_cp_J_per_kg_K: 500,
+      wall_h_W_per_K: 100,
+    },
     generator: null,
     load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {},
@@ -503,11 +567,16 @@ function params(): SystemParams {
 // Total energy of the closed system on the common reference (gas + walls + load water/material).
 function totalEnergy(s: SystemState, p: SystemParams): number {
   const cvE = (c: typeof s.chamber, wall_mass: number, wall_cp: number) =>
-    c.m_air * CV_AIR * c.T + vaporU(c.m_vap, c.T) + c.m_liq * CP_LIQ * c.T +
+    c.m_air * CV_AIR * c.T +
+    vaporU(c.m_vap, c.T) +
+    c.m_liq * CP_LIQ * c.T +
     (c.T_wall !== undefined ? wall_mass * wall_cp * c.T_wall : 0);
   const chamber = cvE(s.chamber, 50, 500);
   const jacket = cvE(s.jacket, 15, 500);
-  const load = s.load.nodes.reduce((a, n) => a + n.m_water * CP_LIQ * n.T + n.mass_kg * n.C_material * n.T, 0);
+  const load = s.load.nodes.reduce(
+    (a, n) => a + n.m_water * CP_LIQ * n.T + n.mass_kg * n.C_material * n.T,
+    0,
+  );
   return chamber + jacket + load;
 }
 
@@ -516,14 +585,27 @@ describe('global energy conservation (closed system)', () => {
     const p = params();
     p.jacket_chamber_h_W_per_K = 0; // isolate: no external drivers, purely internal relaxation
     const T = C_to_K(134);
-    const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], C_to_K(110));
+    const load = buildLoadState(
+      [{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }],
+      C_to_K(110),
+    );
     let s: SystemState = {
-      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0.01, T, T_wall: T },
+      chamber: {
+        m_air: 1e-6,
+        m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T),
+        m_liq: 0.01,
+        T,
+        T_wall: T,
+      },
       jacket: { m_air: 0, m_vap: 0.001, m_liq: 0, T: C_to_K(134), T_wall: C_to_K(134) },
-      generator: null, load, f0_minutes: 0, time_s: 0,
+      generator: null,
+      load,
+      f0_minutes: 0,
+      time_s: 0,
     };
     const E0 = totalEnergy(s, p);
-    for (let i = 0; i < 400; i++) s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    for (let i = 0; i < 400; i++)
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
     const E1 = totalEnergy(s, p);
     expect(Math.abs(E1 - E0) / Math.abs(E0)).toBeLessThan(1e-4); // <0.01% drift over 20 s
   });
@@ -559,6 +641,7 @@ git commit -m "test(physics): global energy-conservation keystone + suite migrat
 ## Task 6: Full gate + docs + TODO
 
 **Files:**
+
 - Modify: `packages/physics/docs/modelo-secagem-vacuo.md`
 - Modify: `TODO.md`
 

@@ -130,7 +130,10 @@ const DEFAULT_ITEMS: LoadItemConfig[] = [
 
 /** Constrói o LoadState a partir de itens de config; carga-default quando ausente;
  *  injeta um nó testemunho se nenhum item o for. */
-export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K: number): LoadState {
+export function buildLoadState(
+  items: LoadItemConfig[] | undefined,
+  T_ambient_K: number,
+): LoadState {
   const src = items && items.length > 0 ? items : DEFAULT_ITEMS;
   const nodes: LoadNode[] = src.map((it, i) => ({
     name: it.name ?? `item-${i}`,
@@ -141,7 +144,14 @@ export function buildLoadState(items: LoadItemConfig[] | undefined, T_ambient_K:
     isWitness: it.witness ?? false,
   }));
   if (!nodes.some((n) => n.isWitness)) {
-    nodes.push({ name: 'testemunho', material: 'COTTON_TEXTILE', mass_kg: 0.05, T: T_ambient_K, m_water: 0, isWitness: true });
+    nodes.push({
+      name: 'testemunho',
+      material: 'COTTON_TEXTILE',
+      mass_kg: 0.05,
+      T: T_ambient_K,
+      m_water: 0,
+      isWitness: true,
+    });
   }
   return { nodes };
 }
