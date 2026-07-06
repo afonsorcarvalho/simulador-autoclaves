@@ -38,7 +38,11 @@ const ALL_VALVES: (keyof ValveSetpoints)[] = [
  *  replaces this over Modbus in SP5). Open below SP+0.1, close above SP+0.5, hold previous state
  *  in the hysteresis band. The plant lets the chamber fall below setpoint when the valve is shut
  *  (ambient loss + condensate drain), so this loop can regulate the chamber into the EN 285 band. */
-export function chamberValveBangBang(T_chamber_C: number, SP_C: number, prevOpen: boolean): boolean {
+export function chamberValveBangBang(
+  T_chamber_C: number,
+  SP_C: number,
+  prevOpen: boolean,
+): boolean {
   if (T_chamber_C < SP_C + 0.1) return true;
   if (T_chamber_C > SP_C + 0.5) return false;
   return prevOpen;

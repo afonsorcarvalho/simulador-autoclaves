@@ -40,7 +40,13 @@ describe('CycleStateMachine', () => {
   it('transitions PREHEAT → PREVAC_VACUUM after preheat_duration_s', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
-    const sensors: MockSensors = { P_chamber_bar: 1.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 };
+    const sensors: MockSensors = {
+      P_chamber_bar: 1.0,
+      T_test_C: 22,
+      T_chamber_C: 22,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    };
     sm.update(150, sensors);
     expect(sm.phase).toBe('PREHEAT');
     sm.update(301, sensors);
@@ -50,7 +56,13 @@ describe('CycleStateMachine', () => {
   it('PREVAC_VACUUM → PREVAC_STEAM when chamber pressure drops below target', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
-    const sensors: MockSensors = { P_chamber_bar: 1.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 };
+    const sensors: MockSensors = {
+      P_chamber_bar: 1.0,
+      T_test_C: 22,
+      T_chamber_C: 22,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    };
     sm.update(301, sensors);
     expect(sm.phase).toBe('PREVAC_VACUUM');
 
@@ -63,11 +75,29 @@ describe('CycleStateMachine', () => {
     sm.start();
     let t = 301;
     for (let pulse = 0; pulse < 3; pulse++) {
-      sm.update(t, { P_chamber_bar: 1.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+      sm.update(t, {
+        P_chamber_bar: 1.0,
+        T_test_C: 22,
+        T_chamber_C: 22,
+        P_jacket_bar: 3.5,
+        F0_min: 0,
+      });
       expect(sm.phase).toBe('PREVAC_VACUUM');
-      sm.update(t + 30, { P_chamber_bar: 0.1, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+      sm.update(t + 30, {
+        P_chamber_bar: 0.1,
+        T_test_C: 22,
+        T_chamber_C: 22,
+        P_jacket_bar: 3.5,
+        F0_min: 0,
+      });
       expect(sm.phase).toBe('PREVAC_STEAM');
-      sm.update(t + 60, { P_chamber_bar: 2.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+      sm.update(t + 60, {
+        P_chamber_bar: 2.0,
+        T_test_C: 22,
+        T_chamber_C: 22,
+        P_jacket_bar: 3.5,
+        F0_min: 0,
+      });
       t += 60;
     }
     expect(sm.phase).toBe('PRESSURIZE');
@@ -77,7 +107,13 @@ describe('CycleStateMachine', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
     sm.forcePhase('PRESSURIZE', 500);
-    sm.update(550, { P_chamber_bar: 3.04, T_test_C: 134, T_chamber_C: 134, P_jacket_bar: 3.5, F0_min: 0 });
+    sm.update(550, {
+      P_chamber_bar: 3.04,
+      T_test_C: 134,
+      T_chamber_C: 134,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    });
     expect(sm.phase).toBe('HOLD');
   });
 
@@ -85,9 +121,21 @@ describe('CycleStateMachine', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
     sm.forcePhase('HOLD', 600);
-    sm.update(610, { P_chamber_bar: 3.04, T_test_C: 134, T_chamber_C: 134, P_jacket_bar: 3.5, F0_min: 50 });
+    sm.update(610, {
+      P_chamber_bar: 3.04,
+      T_test_C: 134,
+      T_chamber_C: 134,
+      P_jacket_bar: 3.5,
+      F0_min: 50,
+    });
     expect(sm.phase).toBe('HOLD');
-    sm.update(1030, { P_chamber_bar: 3.04, T_test_C: 134, T_chamber_C: 134, P_jacket_bar: 3.5, F0_min: 150 });
+    sm.update(1030, {
+      P_chamber_bar: 3.04,
+      T_test_C: 134,
+      T_chamber_C: 134,
+      P_jacket_bar: 3.5,
+      F0_min: 150,
+    });
     expect(sm.phase).toBe('EXHAUST');
   });
 
@@ -95,7 +143,13 @@ describe('CycleStateMachine', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
     sm.forcePhase('EXHAUST', 1100);
-    sm.update(1120, { P_chamber_bar: 0.9, T_test_C: 100, T_chamber_C: 100, P_jacket_bar: 3.5, F0_min: 150 });
+    sm.update(1120, {
+      P_chamber_bar: 0.9,
+      T_test_C: 100,
+      T_chamber_C: 100,
+      P_jacket_bar: 3.5,
+      F0_min: 150,
+    });
     expect(sm.phase).toBe('DRY');
   });
 
@@ -104,7 +158,13 @@ describe('CycleStateMachine', () => {
     sm.start();
     sm.forcePhase('EXHAUST', 1100);
     // 1.013 bar = exactly atmospheric. Old buggy `< 1.0` would never trigger.
-    sm.update(1120, { P_chamber_bar: 1.013, T_test_C: 100, T_chamber_C: 100, P_jacket_bar: 3.5, F0_min: 150 });
+    sm.update(1120, {
+      P_chamber_bar: 1.013,
+      T_test_C: 100,
+      T_chamber_C: 100,
+      P_jacket_bar: 3.5,
+      F0_min: 150,
+    });
     expect(sm.phase).toBe('DRY');
   });
 
@@ -112,19 +172,49 @@ describe('CycleStateMachine', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
     sm.forcePhase('DRY', 1200);
-    sm.update(1700, { P_chamber_bar: 0.1, T_test_C: 80, T_chamber_C: 80, P_jacket_bar: 3.5, F0_min: 150 });
+    sm.update(1700, {
+      P_chamber_bar: 0.1,
+      T_test_C: 80,
+      T_chamber_C: 80,
+      P_jacket_bar: 3.5,
+      F0_min: 150,
+    });
     expect(sm.phase).toBe('DRY');
-    sm.update(1701, { P_chamber_bar: 0.1, T_test_C: 80, T_chamber_C: 80, P_jacket_bar: 3.5, F0_min: 150 });
+    sm.update(1701, {
+      P_chamber_bar: 0.1,
+      T_test_C: 80,
+      T_chamber_C: 80,
+      P_jacket_bar: 3.5,
+      F0_min: 150,
+    });
     expect(sm.phase).toBe('COMPLETE');
   });
 
   it('tracks current prevac pulse count', () => {
     const sm = new CycleStateMachine(makeCycle());
     sm.start();
-    sm.update(301, { P_chamber_bar: 1.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+    sm.update(301, {
+      P_chamber_bar: 1.0,
+      T_test_C: 22,
+      T_chamber_C: 22,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    });
     expect(sm.prevacPulseIndex).toBe(0);
-    sm.update(330, { P_chamber_bar: 0.1, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
-    sm.update(360, { P_chamber_bar: 2.0, T_test_C: 22, T_chamber_C: 22, P_jacket_bar: 3.5, F0_min: 0 });
+    sm.update(330, {
+      P_chamber_bar: 0.1,
+      T_test_C: 22,
+      T_chamber_C: 22,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    });
+    sm.update(360, {
+      P_chamber_bar: 2.0,
+      T_test_C: 22,
+      T_chamber_C: 22,
+      P_jacket_bar: 3.5,
+      F0_min: 0,
+    });
     expect(sm.prevacPulseIndex).toBe(1);
   });
 });
