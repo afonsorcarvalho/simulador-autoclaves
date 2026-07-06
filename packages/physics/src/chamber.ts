@@ -24,6 +24,9 @@ export interface ChamberParams {
   relief_pressure_Pa?: number;
   /** Ambient heat-loss coefficient (W/K), chamber wall/gas → atmosphere. Default 0 (back-compat). */
   h_ambient_W_per_K?: number;
+  /** Passive condensate-drain (steam trap) rate (kg/s) removing chamber liquid + enthalpy.
+   *  Default 0 (back-compat). */
+  drain_kg_per_s?: number;
 }
 
 export interface ChamberPressureBreakdown {

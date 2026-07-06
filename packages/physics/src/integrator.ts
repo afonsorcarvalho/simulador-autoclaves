@@ -274,11 +274,14 @@ export function system_step(
   const Q_ambient_chamber =
     (params.chamber.h_ambient_W_per_K ?? 0) * (state.chamber.T - params.external.atmosphere_T);
 
+  // ponytail: passive condensate-trap rate is a vessel-calibration knob; capped at available liquid.
+  const chamberDrain_kg_s = Math.min(params.chamber.drain_kg_per_s ?? 0, state.chamber.m_liq / dt);
+
   // Chamber step (gas absorbs/gives heat to load; gains from jacket via wall)
   const chamberFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
-    outflow: speciesOut(acc.chamber),
+    outflow: { ...speciesOut(acc.chamber), liq: chamberDrain_kg_s },
     Q_external: -Q_load + Q_comp_load - Q_ambient_chamber, // loses heat to the load + flow-work compensation for load-transfer vapor + ambient loss
     Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
     wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,

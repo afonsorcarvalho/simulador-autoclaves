@@ -65,6 +65,22 @@ describe('chamber ambient heat loss', () => {
   });
 });
 
+describe('condensate drain', () => {
+  it('drains chamber liquid over time when a trap rate is set', () => {
+    const SP = C_to_K(134);
+    const base = holdParams();
+    const p = { ...base, chamber: { ...base.chamber, drain_kg_per_s: 1e-4 } } as SystemParams;
+    let s: SystemState = {
+      chamber: { m_air: 1e-6, m_vap: (p_sat_water(SP) * 0.15) / (R_VAP * SP), m_liq: 0.05, T: SP, T_wall: SP },
+      jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(138)), m_liq: 0, T: C_to_K(138), T_wall: C_to_K(138) },
+      generator: null, load: buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], SP), f0_minutes: 0, time_s: 0,
+    };
+    const liq0 = s.chamber.m_liq;
+    for (let i = 0; i < 2000; i++) s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    expect(s.chamber.m_liq).toBeLessThan(liq0); // condensate drained out
+  });
+});
+
 describe('plant fidelity — chamber stays within EN 285 band when steam valve is shut', () => {
   it('durably settles within the band ceiling (relief-pinned), never runs away hot', () => {
     // Production calibration. Durable equilibrium ≈ 135.5 °C (relief pin at 3.2 bar), well below
