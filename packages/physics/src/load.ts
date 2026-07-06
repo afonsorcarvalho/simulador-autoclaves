@@ -1,6 +1,7 @@
 // packages/physics/src/load.ts
 import { MATERIALS, estimateArea, type MaterialName } from './materials.js';
-import { h_vap_water, T_sat_water } from './saturation.js';
+import { T_sat_water } from './saturation.js';
+import { L_eff } from './energy.js';
 import { CP_WATER, SIGMA_SB, C_to_K } from './constants.js';
 
 export interface LoadNode {
@@ -57,7 +58,10 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
     const m = MATERIALS[node.material];
     const A = estimateArea(node.mass_kg, m);
     const C = Math.max(node.mass_kg * m.cp + node.m_water * CP_WATER, 1e-6);
-    const hv = h_vap_water(node.T);
+    // Latent on the COMMON energy reference (u_vap − u_liq), same basis the chamber stores
+    // and transports vapor on. Using h_vap_water here would credit ~1.4 MJ/kg more than the
+    // chamber is debited → energy created at the load↔chamber condensation boundary.
+    const hv = L_eff(node.T);
     const T_boil = T_sat_water(e.p_vap_chamber);
     const cap = m.waterCapacity_kg_per_kg * node.mass_kg;
     const h_gas = p.h0_conv * (e.rho_gas / e.rho_gas_atm); // coef. de troca gás↔carga ∝ densidade

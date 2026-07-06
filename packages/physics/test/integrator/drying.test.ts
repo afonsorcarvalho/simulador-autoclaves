@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
 import { buildLoadState } from '../../src/load.js';
 import { p_sat_water, T_sat_water } from '../../src/saturation.js';
-import { C_to_K, R_AIR, R_VAP, GAMMA_AIR } from '../../src/constants.js';
+import { C_to_K, R_AIR, R_VAP, GAMMA_AIR, CV_AIR, CP_LIQ } from '../../src/constants.js';
+import { vaporU } from '../../src/energy.js';
+import { MATERIALS } from '../../src/materials.js';
 
 function params(): SystemParams {
   return {
@@ -66,6 +68,47 @@ describe('load↔chamber water conservation', () => {
     const after = next.load.nodes[0]!.m_water + next.chamber.m_vap;
     expect(next.load.nodes[0]!.m_water).toBeLessThan(0.2); // evaporou algo (teste é significativo)
     expect(after).toBeCloseTo(before, 8); // água conservada carga+câmara
+  });
+});
+
+describe('load↔chamber condensation conserves energy exactly (closed, latent reference)', () => {
+  it('no energy is created when the load condenses chamber vapor', () => {
+    const p = params();
+    p.valves = {}; // closed system
+    p.jacket_chamber_h_W_per_K = 0; // no jacket conduction
+    const T = C_to_K(134); // chamber, saturated
+    // Node & jacket at 133°C: node just below T_boil (=T_ch, chamber saturated) so condensation
+    // is the ONLY active path, and T_node≈T_ch kills the physical CV_VAP·(T_node−T_ch) residual.
+    // Large node mass keeps it isothermal near the jacket → radiation driver (T_jacket⁴−T_node⁴)≈0
+    // throughout, so chamber↔load condensation is isolated to ~Joules.
+    const Tn = C_to_K(133);
+    const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 50, witness: true }], Tn);
+    let s: SystemState = {
+      chamber: { m_air: 1e-6, m_vap: (p_sat_water(T) * 0.15) / (R_VAP * T), m_liq: 0, T, T_wall: T }, // saturated (V=0.15)
+      jacket: { m_air: 0, m_vap: 0.001, m_liq: 0, T: Tn, T_wall: Tn }, // at node T → radiation ~0; decoupled (h_jc=0)
+      generator: null,
+      load,
+      f0_minutes: 0,
+      time_s: 0,
+    };
+    const wall_C = 50 * 500;
+    const nodeEnergy = (st: SystemState) =>
+      st.load.nodes.reduce(
+        (a, n) => a + n.m_water * CP_LIQ * n.T + n.mass_kg * MATERIALS[n.material].cp * n.T,
+        0,
+      );
+    const chamberEnergy = (c: typeof s.chamber) =>
+      c.m_air * CV_AIR * c.T +
+      vaporU(c.m_vap, c.T) +
+      c.m_liq * CP_LIQ * c.T +
+      (c.T_wall !== undefined ? wall_C * c.T_wall : 0);
+    const E0 = chamberEnergy(s.chamber) + nodeEnergy(s);
+    for (let i = 0; i < 200; i++)
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+    // sanity: condensation actually happened (test is meaningful)
+    expect(s.load.nodes[0]!.m_water).toBeGreaterThan(1e-4);
+    const E1 = chamberEnergy(s.chamber) + nodeEnergy(s);
+    expect(Math.abs(E1 - E0)).toBeLessThan(50); // < 50 J over 10 s: no creation AND no flow-work residual
   });
 });
 

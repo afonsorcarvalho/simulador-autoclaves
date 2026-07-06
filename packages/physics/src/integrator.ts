@@ -16,7 +16,7 @@ import {
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { p_sat_water } from './saturation.js';
 import { choked_flow, type ValveParams } from './valve.js';
-import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF } from './constants.js';
+import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF, CP_VAP, CV_VAP } from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
@@ -236,6 +236,17 @@ export function system_step(
     acc.chamber.vap_out += -loadVapRate;
   }
 
+  // Load condensation/flash is an IN-PLACE phase transfer at the load surface — it carries NO
+  // flow work. But chamber_step routes this vapor through its advective H_in/H_out, which apply
+  // the CP basis (flow work (CP_VAP−CV_VAP)·T). Compensate it back out so the chamber loses/gains
+  // the load-transfer vapor on the STORAGE (CV) basis, matching the load's L_eff credit. This
+  // closes the ~90 kJ (come-up) flow-work residual. Valve/exhaust outflow keeps the CP basis
+  // (real flow work leaving the system) — it is NOT part of loadVapRate.
+  // ponytail: uses T_ch; when valves co-inject vapor the same tick, chamber_step blends inflow_T
+  //   so a tiny (CP−CV)·(inflow_T−T_ch)·rate residual remains. Second-order; revisit only if a
+  //   simultaneous valve+flash scenario ever needs Joule-tight conservation.
+  const Q_comp_load = (CP_VAP - CV_VAP) * state.chamber.T * -loadVapRate;
+
   // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
   // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
   // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
@@ -259,7 +270,7 @@ export function system_step(
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
     outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load, // loses heat to the load only
+    Q_external: -Q_load + Q_comp_load, // loses heat to the load + flow-work compensation for load-transfer vapor
     Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
     wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };
