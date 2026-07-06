@@ -133,6 +133,7 @@ class RuntimeImpl implements Runtime {
   cycle_running = false;
   cycle_started_at_s = 0;
   params: SystemParams;
+  // Default 2: with bootstrap's 100ms wall tick and TICK_DT_S=0.05, 2 ticks/firing = 1× real time. Keep these three in sync.
   timeScale = 2;
 
   constructor() {

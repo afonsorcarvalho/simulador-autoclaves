@@ -15,7 +15,7 @@ export function startScheduler(opts: SchedulerOpts): () => void {
     busy = true;
     try {
       // Read timeScale each firing so mid-run changes (a knob) take effect immediately.
-      const n = Math.max(1, Math.round(opts.runtime.timeScale));
+      const n = Math.max(1, Math.round(opts.runtime.timeScale) || 1);
       for (let i = 0; i < n; i++) {
         await opts.runtime.tick();
       }
