@@ -245,6 +245,9 @@ export function system_step(
   // ponytail: uses T_ch; when valves co-inject vapor the same tick, chamber_step blends inflow_T
   //   so a tiny (CP−CV)·(inflow_T−T_ch)·rate residual remains. Second-order; revisit only if a
   //   simultaneous valve+flash scenario ever needs Joule-tight conservation.
+  // ponytail: also assumes dt small enough that condensation doesn't saturate the vap_out cap
+  //   (integrator m_vap/(GAMMA_VAP·dt), chamber.ts 0.5·avail_vap); if it did, Q_comp_load would
+  //   over-cancel the un-transported remainder. Negligible while condensation ≪ chamber m_vap.
   const Q_comp_load = (CP_VAP - CV_VAP) * state.chamber.T * -loadVapRate;
 
   // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.

@@ -91,7 +91,7 @@ describe('load↔chamber condensation conserves energy exactly (closed, latent r
       f0_minutes: 0,
       time_s: 0,
     };
-    const wall_C = 50 * 500;
+    const wall_C = p.chamber.wall_mass_kg! * p.chamber.wall_cp_J_per_kg_K!; // derive so it can't drift from params()
     const nodeEnergy = (st: SystemState) =>
       st.load.nodes.reduce(
         (a, n) => a + n.m_water * CP_LIQ * n.T + n.mass_kg * MATERIALS[n.material].cp * n.T,
