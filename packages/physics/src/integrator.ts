@@ -190,6 +190,8 @@ export function system_step(
       acc[topo.from].vap_out += vap_share;
     }
     if (topo.from === 'generator') {
+      // Generator emits plain vapor mass at its T; the latent offset U_FG0 is applied by the
+      // receiving chamber_step's H_in, not here — so latent is counted exactly once.
       generatorVaporOutflow += m;
     }
 

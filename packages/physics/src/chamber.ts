@@ -138,14 +138,9 @@ export function chamber_step(
   // seen as that cold, or the wall under-delivers the energy that reheats it. The caller
   // clamps the FINAL temperature to [T_MIN_K, T_MAX_K] as the last-resort guard.
   const invertEnergy = (U: number): { T: number; m_vap: number; m_liq: number } => {
-    if (!p.allowLiquid) {
-      // Jacket (allowLiquid=false): vapor-only sensible inversion. Full two-phase jacket
-      // behaviour lands in Task 4; here it just carries the latent-inclusive energy.
-      const denomV = m_air * CV_AIR + m_vap * CV_VAP;
-      let Tc = denomV > 0 ? (U - m_vap * U_FG0) / denomV : s.T;
-      if (!isFinite(Tc)) Tc = s.T;
-      return { T: Tc, m_vap, m_liq: 0 };
-    }
+    // Both chamber and jacket solve T + phase split from the latent-inclusive energy by the
+    // SAME bisection. The only difference is downstream: the jacket drips its condensate
+    // (m_liq forced to 0 after the final solve), the chamber retains it.
     const Elo = energyAt(T_MIN_K);
     const Ehi = energyAt(T_MAX_K);
     let Tc: number;
@@ -230,6 +225,9 @@ export function chamber_step(
   T = Math.max(T_MIN_K, Math.min(eq.T, T_MAX_K));
   m_vap = eq.m_vap;
   m_liq = eq.m_liq;
+  // Jacket drips: the condensate the bisection just partitioned at CP_LIQ·T leaves the CV,
+  // carrying exactly that enthalpy out. Energy stays conserved because it was in U_gas.
+  if (!p.allowLiquid) m_liq = 0;
 
   // 5. Pressure relief: vent excess vapor (or air) when P_total exceeds setpoint.
   // Models a passive mechanical relief valve (e.g., on the jacket). No PID — pure set-and-vent.

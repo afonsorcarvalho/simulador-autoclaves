@@ -247,6 +247,29 @@ describe('chamber_step — jacket condensation releases latent heat', () => {
   });
 });
 
+describe('jacket_step — energy conservation with dripping condensate', () => {
+  const jacket: ChamberParams = {
+    V: 0.025, allowLiquid: false, wall_mass_kg: 15, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 100,
+  };
+  const wall_C = 15 * 500;
+
+  it('condensing supersaturated vapor conserves energy: gas + wall + dripped condensate == start', () => {
+    // Hot vapor supersaturated for this V, wall a bit cooler. Vapor condenses; condensate drips out.
+    // m_vap_sat(140°C, 0.025 m³) ≈ 0.048 kg, so 0.06 kg IS supersaturated → condensation.
+    const s: ChamberState = { m_air: 0, m_vap: 0.06, m_liq: 0, T: C_to_K(140), T_wall: C_to_K(120) };
+    const gas0 = vaporU(s.m_vap, s.T);
+    const wall0 = wall_C * s.T_wall!;
+    const next = chamber_step(s, jacket, noFlux(s.T), 0.05);
+    const drippedMass = s.m_vap - next.m_vap; // condensate that left (jacket keeps m_liq=0)
+    expect(next.m_liq).toBe(0);            // jacket drips: never retains liquid
+    expect(drippedMass).toBeGreaterThan(0); // condensation actually happened (not vacuous)
+    const gas1 = vaporU(next.m_vap, next.T);
+    const wall1 = wall_C * next.T_wall!;
+    const drippedEnthalpy = drippedMass * CP_LIQ * next.T; // liquid leaves at CV temperature
+    expect(gas1 + wall1 + drippedEnthalpy).toBeCloseTo(gas0 + wall0, 1); // conserved to ~0.1 J
+  });
+});
+
 describe('chamber_step — wall thermal mass', () => {
   const params150L_walled: ChamberParams = {
     V: 0.15,
