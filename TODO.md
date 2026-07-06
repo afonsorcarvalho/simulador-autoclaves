@@ -9,7 +9,10 @@
   parecer do `physics-model-reviewer` (§11 do doc + spec `2026-07-05-chamber-two-phase-design.md` §Q5):
   (1) só travar quando `T > T_sat(p_vap)`; (2) limiar de ar por **pressão parcial** `p_air < ~5% p_total`
   (não razão de massa); (3) floor de `p_vap` (~1e4 Pa) p/ não reportar T absurda em vácuo profundo;
-  (4) bisecção do ponto fixo (não one-shot). Aceitação: gás saturado no HOLD (dT≈0), queda na secagem
+  (4) bisecção do ponto fixo (não one-shot). **Aceitação (critério de norma, dado pelo user):** os
+  pontos de temperatura medidos na câmara **não podem ultrapassar +3 °C** acima do setpoint de
+  esterilização no plateau (banda EN 285 = 0 a +3 °C). Hoje (só SP-A, sem pin) a câmara chega a
+  ~145 °C no HOLD (>+10) — visto no dashboard. Também: gás saturado no HOLD (dT≈0), queda na secagem
   visível, F0 de confiança (energia agora conserva). Fazer brainstorm→spec→plano próprio. Retomar o
   alívio 3.2 bar (já committed) + migração de ~4 testes de comportamento (drying speed, wall-coupling).
 
