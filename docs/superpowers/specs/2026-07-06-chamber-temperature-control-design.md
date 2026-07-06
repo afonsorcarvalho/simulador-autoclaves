@@ -1,6 +1,6 @@
 # Controlo de temperatura da câmara (bang-bang) — design
 
-**Data:** 2026-07-06
+**Data:** 2026-07-06 (rev. 2 — achado da Task 1: a planta precisa de vias de perda)
 **Estado:** aprovado (brainstorm), pronto p/ plano
 **Sub-projeto:** SP-B. Constrói sobre o SP-A (referência de entalpia comum, já em master).
 **Supersede:** a direção "pin vapor-dominated" do `2026-07-05-chamber-two-phase-design.md` §Q5 — o
@@ -22,9 +22,11 @@ reabre. Oscila apertado → dentro da banda. O modelo não tem este laço.
 
 ## Objetivo / aceitação
 
-- **[PLANTA — o essencial] Fidelidade:** com `V_STEAM_IN_INT` fechada no HOLD, `dT_chamber/dt < 0`
-  (a câmara arrefece até reabrir). É isto que faz o bang-bang de QUALQUER controlador (virtual ou PLC
-  real) funcionar. Sem isto, o SP-B falha, por mais bem afinado que esteja o controlador de referência.
+- **[PLANTA — o essencial] Controlabilidade:** com `V_STEAM_IN_INT` fechada no HOLD (e perdas+dreno
+  ativos), a câmara **cai abaixo do setpoint** (não só `dT<0` transiente — desce durável < SP para o
+  controlador ter de reabrir). É isto que faz o bang-bang de QUALQUER controlador (virtual ou PLC real)
+  funcionar. Sem isto, o SP-B falha. (Achado rev. 2: sem vias de perda a câmara fixa-se em ~135.5 e o
+  controlo não a baixa.)
 - **[EN 285] Banda:** com o controlador de referência a atuar, T da câmara ∈ **[SP, SP+3] °C** durante
   todo o HOLD (era +10). Idealmente [SP+0.1, SP+0.5]. A válvula da câmara **cicla** (não fica sempre
   aberta).
@@ -39,6 +41,37 @@ reabre. Oscila apertado → dentro da banda. O modelo não tem este laço.
   `chamber.ts`).
 - **Topologia:** `V_STEAM_IN_INT` passa a ser alimentada **do jacket** (não do gerador a 148 °C) — a
   fonte nunca é mais quente que o jacket, reduz o overshoot.
+
+## Achado da Task 1 (rev. 2) — a planta não é controlável sem vias de perda
+
+A Task 1 (fidelidade da planta) provou que **a temperatura da câmara = T_sat(pressão da câmara)** e que,
+com o alívio a 3.2 bar e líquido presente, a câmara **fixa-se em T_sat(3.2 bar) ≈ 135.5 °C** — de forma
+**independente do acoplamento parede/jacket** (testado 150→0, sempre 135.5). Duas implicações:
+
+1. 135.5 °C está dentro da banda EN 285 (134–137). Os 145 °C do dashboard eram a câmara **single-phase**
+   (sem líquido) inundada pelo gerador a 148 °C.
+2. **Problema de fidelidade de controlo:** com a válvula fechada a câmara **não arrefece abaixo de
+   135.5** — o alívio segura a pressão e **não existe nenhuma via de perda** na planta (`V_DRAIN_INT`
+   não está ligado; não há termo de perda ambiente; o jacket guarda as paredes). Logo o PLC (real ou
+   virtual) **não a consegue controlar para baixo**: fecha a válvula e a câmara fica presa. Para o
+   bang-bang funcionar (abrir<SP+0.1, fechar>SP+0.5), a câmara tem de **cair abaixo de SP** quando a
+   válvula fecha.
+
+**Decisão (utilizador, rev. 2):** adicionar à planta **ambas** as vias de perda da máquina real, e o
+alívio passa a **teto de segurança** (não ponto de operação):
+
+- **Perda ambiente:** termo de perda de calor da câmara (parede/porta não-jaquetadas → atmosfera),
+  `chamber.h_ambient_W_per_K` (knob). Faz T cair quando o vapor fecha.
+- **Dreno de condensado:** purga contínua do condensado da câmara (`V_DRAIN_INT` ligado como caudal
+  câmara→dreno, ou trap passivo) — remove líquido+energia, despressuriza quando privada de vapor.
+  Equilíbrio: vapor a entrar repõe, dreno remove; sem vapor, a câmara despressuriza ao longo da curva
+  de saturação e T cai.
+- **Alívio → teto de segurança:** subir p/ ~3.4 bar (só protege contra sobrepressão). O ponto de
+  operação (≈134) passa a ser mantido pelo laço vapor-vs-perdas, não pelo alívio.
+
+Com estas vias: válvula fechada → perdas + dreno → vapor condensa/sai → pressão cai → T cai abaixo de
+SP → o controlador reabre → cicla. **Isto é a fundação da fidelidade da planta e agora vem ANTES do
+controlador no plano.**
 
 ## Arquitetura (emulador HIL — planta vs controlador) — CRÍTICO
 
@@ -92,10 +125,15 @@ existente (`jacket_setpoint_bar` / `jacket_deadband_bar`).
 - **Topologia** (`apps/web/server/runtime/singleton.ts` + cenário): `V_STEAM_IN_INT` `from: 'jacket'`
   (era `'generator'`). O jacket passa a ser o buffer/fonte da câmara; verificar Cv suficiente p/ a
   câmara repressurizar nos pulsos e no HOLD. O gerador continua a alimentar o jacket.
-- **Calibração da física** (risco técnico, ver abaixo): garantir que, com a válvula fechada, o gás da
-  câmara **arrefece** de volta a SP+0.1. Se o acoplamento parede↔gás (`wall_h_W_per_K`) ou a condução
-  jacket→parede (`jacket_chamber_h_W_per_K`) segurarem o gás acima de SP+0.5 (parede a ~138 aquece o
-  gás), afinar esses coeficientes. É um knob de calibração, não reescrita.
+- **Vias de perda da planta (FUNDAÇÃO, rev. 2 — vem ANTES do controlador):** sem estas o controlo não
+  baixa a câmara (achado da Task 1).
+  - **Perda ambiente:** `chamber.h_ambient_W_per_K` (novo param, knob) — `Q_loss = h_ambient·(T − T_atm)`
+    no gás/parede da câmara (integrator). A calibração parede/jacket **não** resolve (provado
+    ineficaz — o equilíbrio é o pin de saturação do alívio); é preciso uma perda real p/ atmosfera.
+  - **Dreno de condensado:** ligar `V_DRAIN_INT` como caudal câmara→dreno (líquido+energia saem), ou um
+    trap passivo contínuo. Despressuriza a câmara quando privada de vapor.
+  - **Alívio → teto de segurança:** subir o alívio da câmara 3.2 → ~3.4 bar (só sobrepressão); o ponto
+    de operação passa a ser vapor-vs-perdas.
 
 ### 3. Sensor de controlo
 
@@ -110,16 +148,14 @@ física (chamber.T) → sensor T_CHAMBER_INT → PLC/CLI bang-bang (histerese) �
                                                                     (fonte = jacket, ~138 °C)
 ```
 
-### 5. Risco técnico principal (a resolver na implementação)
+### 5. Risco técnico principal — RESOLVIDO na rev. 2
 
-A parede da câmara é aquecida pelo jacket (~138 °C) e acoplada ao gás. Se esse acoplamento for forte
-demais, ao fechar a válvula o gás **não arrefece** (a parede segura-o a ~138) → a válvula nunca reabre e
-o gás fica a +4 °C (fora da banda). Câmaras reais perdem calor p/ a carga/porta/alívio mais depressa do
-que a parede reaquece. **Mitigação:** calibrar `wall_h_W_per_K` / `jacket_chamber_h_W_per_K` para que o
-gás possa arrefecer quando a válvula fecha. Medir no trace: com a válvula fechada, `dT_chamber/dt < 0`.
-Se não der só com calibração, reconsiderar (fallback: reduzir a condução jacket→gás, ou aceitar que o
-tecto real é `T_sat(P_câmara)` e reintroduzir o pin como rede de segurança — mas tentar controlo puro
-primeiro).
+Hipótese original: o gás não arrefece por acoplamento parede/jacket forte → calibrar `wall_h` /
+`jacket_chamber_h`. **A Task 1 provou esta hipótese ERRADA:** o equilíbrio (135.5 °C) é o pin de
+saturação do alívio, **independente do acoplamento** (150→0 dá sempre 135.5). A calibração parede/jacket
+não move nada. A causa real é a **ausência de vias de perda** (ver secção "Achado da Task 1"). Mitigação
+correta: adicionar perda ambiente + dreno + alívio-como-teto (secção §2). Sem fallback de pin — as vias
+de perda são o mecanismo físico real da máquina.
 
 ## Testes
 
