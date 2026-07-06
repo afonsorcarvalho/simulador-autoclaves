@@ -277,3 +277,37 @@ câmara + estabilidade numérica + retuning de pressão + migração de testes. 
 - Material properties — EngineeringToolbox: https://www.engineeringtoolbox.com/material-properties-t_24.html
 - Retenção de humidade têxtil — PMC steam sterilization review: https://pmc.ncbi.nlm.nih.gov/articles/PMC12947077/
 - Drying de meios porosos — Hindawi IJChE (2018): https://www.hindawi.com/journals/ijce/2018/9456418/
+
+## 11. Referência de entalpia comum — SP-A (2026-07-06)
+
+Ao validar o pin da câmara (§8b) end-to-end, o `physics-model-reviewer` encontrou um bloqueio a
+montante: a energia interna dos volumes de controlo era **só sensível** (`U = m·cv·T`) e o latente
+entrava como transferências de calor explícitas nos pontos de mudança de fase. Isto **cria energia**
+na fronteira câmara↔carga (a carga creditava `dep·h_vap ≈ 2.2 MJ/kg` ao condensar, a câmara era
+debitada só o sensível → **~1.4 MJ/kg criados por kg**). Dormente enquanto a carga superaquecia; o pin
+vapor-dominated **liga** a condensação e enviesaria o F0. Logo: **energia primeiro** (SP-A), depois o
+pin (SP-B).
+
+**Solução (spec/plano em `docs/superpowers/{specs,plans}/2026-07-05-energy-reference*`):** offset de
+latente constante `U_FG0 = 3.29301e6 J/kg` (`constants.ts`), helpers `vaporU`/`L_eff` (`energy.ts`).
+O vapor passa a carregar o latente na energia (`u_vap = CV_VAP·T + U_FG0`) e no transporte
+(`h_vap = CP_VAP·T + U_FG0`). `L_eff(T) = U_FG0 − (CP_LIQ − CV_VAP)·T` casa `h_vap_water(T)` em toda a
+gama (as inclinações coincidem). **Mudança de fase passa a mass-only:** T resolve-se da `U` total
+(incluindo latente) por **bisecção** — remove os bumps de latente, o floor `MIN_HEAT_CAP_JK`, os
+clamps `U_floor/U_ceil` e os depósitos de latente na parede. A câmara e a jaqueta partilham a
+bisecção; a jaqueta só difere por `m_liq = 0` (dripa) depois do solve. A condensação carga↔câmara usa
+`L_eff` + uma compensação de flow-work `Q_comp_load = (CP_VAP−CV_VAP)·T_ch·(−loadVapRate)` no
+integrador (a condensação é transferência de fase in-place, sem trabalho de escoamento).
+
+**Invariante que guarda tudo:** `test/energy-conservation.test.ts` — sistema fechado com condensação
+real conserva a energia total; guarda por-kg `|ΔE|/kg_condensado < 200 kJ/kg` (o residual correto é
+~42 kJ/kg = termo de 2ª ordem do arrefecimento sensível do vapor T_ch→T_node; o bug grosseiro seria
+~1.4 MJ/kg). Verificado a falhar sob 3 regressões injetadas (tirar `U_FG0`, tirar `Q_comp_load`,
++1.4 MJ/kg). Conservação por-CV a ~precisão de máquina. Suite 106 physics / 71 web verde, gate CI
+verde.
+
+**Fora de escopo (→ SP-B):** o pin vapor-dominated + os 4 guards (direção `T>T_sat`, limiar de ar por
+pressão parcial, floor de `p_vap`, bisecção do ponto fixo). SP-B constrói-se sobre esta base de energia
+correta. **Caveat menor conhecido:** `chamber.ts:105` zera líquido a entrar na jaqueta enquanto `H_in`
+ainda conta `dm_liq_in·CP_LIQ·T` — fuga se alguma vez entrar líquido na jaqueta (não dispara hoje;
+jaqueta é alimentada a vapor).
