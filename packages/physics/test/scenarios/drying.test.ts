@@ -28,11 +28,14 @@ describe('Drying phase', () => {
     };
 
     const m_liq_initial = s.chamber.m_liq;
-    // N-node load coupling: the hot (134 °C) load is now a thermal reservoir tied to the
-    // gas by radiation + density-scaled convection, which slows the chamber's evaporative
-    // pump-down. Removal is still monotonic and completes (~0 by ~2700 s); it just crosses
-    // the 50 % mark at ~1500 s instead of within 900 s. Same assertion, longer window.
-    for (let t = 0; t < 1800 / dt; t++) {
+    // Wall-less, no-active-heat chamber: pure adiabatic flash pump-down. With the common
+    // latent-inclusive energy reference (SP-A Task 2), the chamber's internal energy no
+    // longer gets the old U_floor clamp that injected spurious energy during flash cooling
+    // and kept the gas warm. Correct energy accounting => the gas settles cold/saturated and
+    // evaporation is slower. Removal is still strictly monotonic and completes: crosses the
+    // 50 % mark at ~2711 s (vs ~1500 s before). Window widened to 3800 s (~1.4×) with margin.
+    // The SP-B vapor-dominated pin (which lets jacket heat drive drying) will restore speed.
+    for (let t = 0; t < 3800 / dt; t++) {
       s = system_step(s, p, { V_VAC: true }, { heater_gen: false, pump_vac: true }, dt);
     }
 
