@@ -7,8 +7,8 @@ import {
   type ChamberFluxes,
   type SpeciesFlow,
 } from '../src/chamber.js';
-import { C_to_K, Pa_to_bar } from '../src/constants.js';
-import { p_sat_water, T_sat_water } from '../src/saturation.js';
+import { C_to_K, Pa_to_bar, CV_AIR, CP_LIQ } from '../src/constants.js';
+import { vaporU } from '../src/energy.js';
 
 const params150L: ChamberParams = { V: 0.15, allowLiquid: true };
 
@@ -50,6 +50,41 @@ function zeroFlow(): SpeciesFlow {
 function noFlux(T_K: number): ChamberFluxes {
   return { inflow: zeroFlow(), inflow_T: T_K, outflow: zeroFlow(), Q_external: 0 };
 }
+
+function chamberEnergy(s: ChamberState, wall_C: number): number {
+  const gas = s.m_air * CV_AIR * s.T + vaporU(s.m_vap, s.T) + s.m_liq * CP_LIQ * s.T;
+  const wall = wall_C > 0 && s.T_wall !== undefined ? wall_C * s.T_wall : 0;
+  return gas + wall;
+}
+
+describe('chamber_step — energy conservation (closed CV, latent reference)', () => {
+  const walled: ChamberParams = {
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
+  };
+  const wall_C = 50 * 500;
+
+  it('conserves total energy when vapor condenses (no flows, no external Q)', () => {
+    const s: ChamberState = { m_air: 0, m_vap: 0.03, m_liq: 0, T: C_to_K(150), T_wall: C_to_K(150) };
+    const E0 = chamberEnergy(s, wall_C);
+    let cur = s;
+    for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
+    expect(chamberEnergy(cur, wall_C)).toBeCloseTo(E0, 2);
+    expect(cur.m_vap + cur.m_liq).toBeCloseTo(0.03, 8);
+  });
+
+  it('conserves total energy when liquid evaporates (sub-saturated, no flows)', () => {
+    const s: ChamberState = { m_air: 0, m_vap: 0.001, m_liq: 0.02, T: C_to_K(80), T_wall: C_to_K(80) };
+    const E0 = chamberEnergy(s, wall_C);
+    let cur = s;
+    for (let i = 0; i < 50; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
+    expect(chamberEnergy(cur, wall_C)).toBeCloseTo(E0, 2);
+    expect(cur.m_vap + cur.m_liq).toBeCloseTo(0.021, 8);
+  });
+});
 
 describe('chamber_step — mass balance', () => {
   it('conserves air mass when no flow and no heat', () => {
@@ -287,39 +322,15 @@ describe('wall coupling scales with gas density', () => {
   });
 });
 
-describe('chamber_step — two-phase saturation pin', () => {
+// Task 2 replaced the explicit saturation "pin" (+ latent-to-wall deposits) with a mass-only
+// equilibrium solved from the latent-inclusive internal energy. The two pin-mechanism tests
+// (single-step + steady-state pin) were removed with the pin; SP-B re-introduces an explicit
+// pin later. The invariants below (water conservation, no-ceiling on condensation, no NaN
+// under vacuum) survive the refactor and are kept as regression guards.
+describe('chamber_step — two-phase equilibrium', () => {
   const walled: ChamberParams = {
     V: 0.15, allowLiquid: true, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200,
   };
-  const m_vap_sat = (T: number) => (p_sat_water(T) * 0.15) / (461.5 * T);
-
-  it('pins gas to T_sat(p_vap) while liquid is present, even when the wall is hotter', () => {
-    const T = C_to_K(134);
-    const s: ChamberState = {
-      m_air: 1e-6, m_vap: m_vap_sat(T), m_liq: 0.05, T, T_wall: C_to_K(140),
-    };
-    let cur = s;
-    for (let i = 0; i < 200; i++) cur = chamber_step(cur, walled, noFlux(cur.T), 0.05);
-    const p_vap = Math.min((cur.m_vap * 461.5 * cur.T) / 0.15, p_sat_water(cur.T));
-    expect(cur.T).toBeCloseTo(T_sat_water(p_vap), 0);
-    expect(cur.T).toBeLessThan(C_to_K(140)); // never reached the hot wall
-    expect(cur.m_liq).toBeGreaterThan(0); // still two-phase
-  });
-
-  it('pins a SUPERHEATED gas back to T_sat in a single step while liquid is present', () => {
-    // Gas deliberately above saturation with liquid present (no-wall CV so the equilibrium
-    // partition acts on the gas directly). The OLD rate-based model (k_evap-limited
-    // evaporation, no pin) leaves the gas superheated at ~150°C, far from its vapor's T_sat;
-    // the new equilibrium pin drives it to T_sat(p_vap) in ONE step while liquid remains.
-    const T_sup = C_to_K(160); // superheated
-    const m_vap = m_vap_sat(C_to_K(120)); // vapor amount whose saturation temp is ~120°C, well below 160
-    const s: ChamberState = { m_air: 1e-6, m_vap, m_liq: 0.05, T: T_sup };
-    const next = chamber_step(s, params150L, noFlux(T_sup), 0.05);
-    const p_vap = Math.min((next.m_vap * 461.5 * next.T) / 0.15, p_sat_water(next.T));
-    expect(next.T).toBeCloseTo(T_sat_water(p_vap), 0); // pinned to saturation
-    expect(next.T).toBeLessThan(C_to_K(150)); // dropped far below the 160°C superheat
-    expect(next.m_liq).toBeGreaterThan(0); // still two-phase
-  });
 
   it('conserves total water mass (m_vap + m_liq) across a step', () => {
     const T = C_to_K(120);

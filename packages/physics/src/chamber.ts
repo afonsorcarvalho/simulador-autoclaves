@@ -1,5 +1,6 @@
-import { R_AIR, R_VAP, CV_AIR, CV_VAP, CP_LIQ, CP_AIR, CP_VAP } from './constants.js';
-import { p_sat_water, h_vap_water, T_sat_water } from './saturation.js';
+import { R_AIR, R_VAP, CV_AIR, CV_VAP, CP_LIQ, CP_AIR, CP_VAP, U_FG0 } from './constants.js';
+import { p_sat_water } from './saturation.js';
+import { vaporU } from './energy.js';
 
 export interface ChamberState {
   m_air: number; // kg
@@ -103,30 +104,77 @@ export function chamber_step(
   if (m_liq < 0) m_liq = 0;
   if (!p.allowLiquid) m_liq = 0;
 
-  // 2. Energy balance — use ACTUAL (clamped) outflow for consistency with mass balance.
-  const U_old = s.m_air * CV_AIR * s.T + s.m_vap * CV_VAP * s.T + s.m_liq * CP_LIQ * s.T;
-  const H_in = (dm_air_in * CP_AIR + dm_vap_in * CP_VAP + dm_liq_in * CP_LIQ) * f.inflow_T;
-  const H_out = (dm_air_out * CP_AIR + dm_vap_out * CP_VAP + dm_liq_out * CP_LIQ) * s.T;
+  // 2. Energy balance. The gas internal energy U_gas carries the latent offset (common
+  //    reference): vapor terms include U_FG0 so phase change never has to be booked as a
+  //    separate heat deposit. It is the conserved state carried through the whole step.
+  const U_old = s.m_air * CV_AIR * s.T + vaporU(s.m_vap, s.T) + s.m_liq * CP_LIQ * s.T;
+  const H_in =
+    dm_air_in * CP_AIR * f.inflow_T +
+    dm_vap_in * (CP_VAP * f.inflow_T + U_FG0) +
+    dm_liq_in * CP_LIQ * f.inflow_T;
+  const H_out =
+    dm_air_out * CP_AIR * s.T +
+    dm_vap_out * (CP_VAP * s.T + U_FG0) +
+    dm_liq_out * CP_LIQ * s.T;
+  let U_gas = U_old + H_in - H_out + f.Q_external * dt;
 
-  // Clamp U_new to [U_floor, U_ceil] to prevent T escaping sane bounds when the gas
-  // thermal mass is tiny (near-vacuum) and Q_external is large (high h_gas_metal).
-  // U_ceil corresponds to T_MAX_K; U_floor corresponds to T_MIN_K.
-  // This ensures that no matter how extreme Q_external or H_out become, T stays in
-  // [T_MIN_K, T_MAX_K].  This is the last resort: normal physics should stay within bounds.
-  const denom_pre_for_clamp = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
-  const U_floor = denom_pre_for_clamp * T_MIN_K; // minimum sensible energy at T_MIN_K
-  const U_ceil = denom_pre_for_clamp * T_MAX_K; // maximum sensible energy at T_MAX_K
-  const U_raw = U_old + H_in - H_out + f.Q_external * dt;
-  const U_new = denom_pre_for_clamp > 0 ? Math.max(U_floor, Math.min(U_raw, U_ceil)) : U_raw;
+  // Total water: the chamber path partitions this between vapor and liquid at equilibrium.
+  const m_w = m_vap + m_liq;
+  // Vapor/liquid split at temperature Tc (saturation clamped to the valid range).
+  const splitAt = (Tc: number) => {
+    const Tk = Math.max(T_MIN_K, Math.min(Tc, T_MAX_K));
+    const mv = Math.min(m_w, (p_sat_water(Tk) * p.V) / (R_VAP * Tk));
+    return { m_vap: mv, m_liq: m_w - mv };
+  };
+  // Latent-inclusive internal energy of the gas if it sat at Tc (vapor/liquid split by
+  // saturation). Monotone increasing in Tc, so it inverts by bisection.
+  const energyAt = (Tc: number) => {
+    const { m_vap: mv, m_liq: ml } = splitAt(Tc);
+    return m_air * CV_AIR * Tc + vaporU(mv, Tc) + ml * CP_LIQ * Tc;
+  };
+  // Invert energyAt → temperature (UNCLAMPED). In the valid range this bisects; outside it
+  // extrapolates linearly with the boundary heat capacity. The unclamped result matters for
+  // the wall coupling: a near-vacuum gas whose energy implies a sub-floor temperature must be
+  // seen as that cold, or the wall under-delivers the energy that reheats it. The caller
+  // clamps the FINAL temperature to [T_MIN_K, T_MAX_K] as the last-resort guard.
+  const invertEnergy = (U: number): { T: number; m_vap: number; m_liq: number } => {
+    if (!p.allowLiquid) {
+      // Jacket (allowLiquid=false): vapor-only sensible inversion. Full two-phase jacket
+      // behaviour lands in Task 4; here it just carries the latent-inclusive energy.
+      const denomV = m_air * CV_AIR + m_vap * CV_VAP;
+      let Tc = denomV > 0 ? (U - m_vap * U_FG0) / denomV : s.T;
+      if (!isFinite(Tc)) Tc = s.T;
+      return { T: Tc, m_vap, m_liq: 0 };
+    }
+    const Elo = energyAt(T_MIN_K);
+    const Ehi = energyAt(T_MAX_K);
+    let Tc: number;
+    if (U <= Elo) {
+      const { m_vap: mv, m_liq: ml } = splitAt(T_MIN_K);
+      const Cf = m_air * CV_AIR + mv * CV_VAP + ml * CP_LIQ;
+      Tc = Cf > 0 ? T_MIN_K - (Elo - U) / Cf : T_MIN_K;
+    } else if (U >= Ehi) {
+      const { m_vap: mv, m_liq: ml } = splitAt(T_MAX_K);
+      const Cc = m_air * CV_AIR + mv * CV_VAP + ml * CP_LIQ;
+      Tc = Cc > 0 ? T_MAX_K + (U - Ehi) / Cc : T_MAX_K;
+    } else {
+      let lo = T_MIN_K;
+      let hi = T_MAX_K;
+      for (let i = 0; i < 60; i++) {
+        const mid = (lo + hi) / 2;
+        if (energyAt(mid) < U) lo = mid;
+        else hi = mid;
+      }
+      Tc = (lo + hi) / 2;
+    }
+    if (!isFinite(Tc)) Tc = s.T;
+    const { m_vap: mv, m_liq: ml } = splitAt(Tc);
+    return { T: Tc, m_vap: mv, m_liq: ml };
+  };
 
-  // 3. Solve T from U_new with provisional masses.
-  const MIN_HEAT_CAP_JK = 500; // J/K — floor used only in condensation latent heat to prevent
-  // T spikes when condensing large vapor mass into tiny liquid at near-vacuum (see step 4).
-  const denom_pre = denom_pre_for_clamp;
-  let T = denom_pre > 0 ? U_new / denom_pre : s.T;
-  // Hard bounds: clamp to [T_MIN_K, T_MAX_K] rather than preserving stale s.T
-  if (!isFinite(T)) T = s.T;
-  T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
+  // Provisional T (for the wall coupling) from the pre-wall internal energy.
+  const prov = invertEnergy(U_gas);
+  let T = prov.T;
 
   // 3.2. Wall thermal mass coupling (gas ↔ wall heat exchange via implicit-Euler).
   // The wall acts as a thermal reservoir that damps fast T transients during vacuum pulses.
@@ -140,7 +188,7 @@ export function chamber_step(
   if (wall_C > 0 && wall_h > 0) {
     // Initialize T_wall from state, defaulting to current gas T if not set.
     const T_wall_prev = s.T_wall ?? s.T;
-    const gas_C = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+    const gas_C = m_air * CV_AIR + prov.m_vap * CV_VAP + prov.m_liq * CP_LIQ;
     if (gas_C > 0) {
       // Symmetric implicit-Euler update for the coupled gas+wall system.
       // Both sub-systems relax to a shared steady-state T_inf with time constant tau.
@@ -149,10 +197,12 @@ export function chamber_step(
       const T_inf = (gas_C * T + wall_C * T_wall_prev) / (gas_C + wall_C);
       const tau = (gas_C * wall_C) / (wall_h * (gas_C + wall_C));
       const decay = Math.exp(-dt / tau);
-      T = T_inf + (T - T_inf) * decay;
+      const T_new = T_inf + (T - T_inf) * decay;
       T_wall = T_inf + (T_wall_prev - T_inf) * decay;
-      // Keep T within hard bounds after wall exchange
-      T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
+      // Move exactly the sensible energy the wall gained out of the gas internal energy,
+      // so the latent-inclusive CV energy (gas + wall) is conserved by construction.
+      U_gas -= gas_C * (T - T_new);
+      T = T_new;
     } else {
       // No gas mass — wall stays at previous temperature
       T_wall = s.T_wall ?? s.T;
@@ -171,82 +221,14 @@ export function chamber_step(
   }
   // If no wall model: T_wall remains undefined (back-compat)
 
-  // 4. Phase equilibrium.
-  if (!p.allowLiquid) {
-    // Jacket: condensate drips out, latent to the wall (unchanged behaviour).
-    for (let iter = 0; iter < 3; iter++) {
-      const p_sat = p_sat_water(T);
-      const m_vap_max = (p_sat * p.V) / (R_VAP * T);
-      if (m_vap <= m_vap_max + 1e-9) break;
-      const dm_cond = m_vap - m_vap_max;
-      m_vap = m_vap_max;
-      if (dm_cond > 0) {
-        const Q_lat = dm_cond * h_vap_water(T);
-        if (T_wall !== undefined && wall_C > 0) {
-          T_wall += Q_lat / wall_C;
-          if (T_wall > T_MAX_K) T_wall = T_MAX_K;
-        } else {
-          const denom = Math.max(m_air * CV_AIR + m_vap * CV_VAP, MIN_HEAT_CAP_JK);
-          T += Q_lat / denom;
-          if (T > T_MAX_K) T = T_MAX_K;
-        }
-      }
-      break;
-    }
-  } else {
-    // Chamber: two-phase equilibrium partition. Latent exchanged with the WALL (large,
-    // stable heat capacity), gas pinned to T_sat while liquid remains. Replaces the
-    // rate-based k_evap + gas-heating condensation that spiked at near-vacuum.
-    // ponytail: uses h_vap at current T as the latent constant; the wall buffer makes the
-    // scheme robust to that approximation. Tune wall_h_W_per_K / wall_mass_kg for real hardware.
-    const wallOK = T_wall !== undefined && wall_C > 0;
-    const m_vap_sat = (p_sat_water(T) * p.V) / (R_VAP * T);
-
-    if (m_vap > m_vap_sat) {
-      // Supersaturated → condense excess to saturation; latent to the wall (or gas floor).
-      const dm = m_vap - m_vap_sat;
-      m_vap = m_vap_sat;
-      m_liq += dm;
-      const Q_lat = dm * h_vap_water(T);
-      if (wallOK) T_wall! += Q_lat / wall_C;
-      else T += Q_lat / Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
-    } else if (m_liq > 0 && m_vap < m_vap_sat) {
-      // Sub-saturated with liquid → evaporate toward saturation; latent drawn FROM the wall.
-      let dm = Math.min(m_liq, m_vap_sat - m_vap);
-      const gas_C_evap = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
-      if (!wallOK) {
-        // No wall: latent comes from the gas itself. Cap evaporation so the gas cannot
-        // over-cool past its own saturation temperature — otherwise dumping a full liquid
-        // charge's latent into the tiny gas heat capacity crashes T and leaves the vapor
-        // grossly oversaturated (the very near-vacuum spike this scheme removes). Converges
-        // to equilibrium over successive steps, matching the old rate-based evaporator.
-        const T_sat_now = T_sat_water((m_vap * R_VAP * T) / p.V);
-        const dm_energy = Math.max(0, (gas_C_evap * (T - T_sat_now)) / h_vap_water(T));
-        dm = Math.min(dm, dm_energy);
-      }
-      m_vap += dm;
-      m_liq -= dm;
-      const Q_lat = dm * h_vap_water(T);
-      if (wallOK) T_wall! -= Q_lat / wall_C;
-      else T -= Q_lat / Math.max(m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ, MIN_HEAT_CAP_JK);
-    }
-
-    // Pin: while liquid remains, the gas cannot exceed its saturation temperature. Clamp T to
-    // T_sat(p_vap) and deposit the sensible surplus/deficit into the wall (energy-conserving).
-    if (m_liq > 0) {
-      const p_vap = (m_vap * R_VAP * T) / p.V;
-      const T_sat = T_sat_water(p_vap);
-      const gas_C = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
-      if (wallOK) T_wall! += (gas_C * (T - T_sat)) / wall_C;
-      T = T_sat;
-    }
-
-    if (T_wall !== undefined) {
-      if (T_wall > T_MAX_K) T_wall = T_MAX_K;
-      if (T_wall < T_MIN_K) T_wall = T_MIN_K;
-    }
-    T = Math.max(T_MIN_K, Math.min(T, T_MAX_K));
-  }
+  // 4. Final phase equilibrium from the wall-adjusted internal energy. Phase change is a
+  //    pure mass repartition at fixed U_gas — no separate latent heat deposit is needed
+  //    because the latent offset already lives inside U_gas. The final temperature is clamped
+  //    to [T_MIN_K, T_MAX_K] as the last-resort guard.
+  const eq = invertEnergy(U_gas);
+  T = Math.max(T_MIN_K, Math.min(eq.T, T_MAX_K));
+  m_vap = eq.m_vap;
+  m_liq = eq.m_liq;
 
   // 5. Pressure relief: vent excess vapor (or air) when P_total exceeds setpoint.
   // Models a passive mechanical relief valve (e.g., on the jacket). No PID — pure set-and-vent.
