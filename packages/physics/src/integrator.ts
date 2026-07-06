@@ -270,12 +270,16 @@ export function system_step(
   const Q_jacket_to_chamber = h_jc > 0 ? h_jc * (state.jacket.T - state.chamber.T) : 0;
   // Positive: heat flows from jacket to chamber (jacket hotter)
 
+  // ponytail: ambient loss is a vessel-calibration knob (door/penetration losses); tuned to the band later.
+  const Q_ambient_chamber =
+    (params.chamber.h_ambient_W_per_K ?? 0) * (state.chamber.T - params.external.atmosphere_T);
+
   // Chamber step (gas absorbs/gives heat to load; gains from jacket via wall)
   const chamberFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
     outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load + Q_comp_load, // loses heat to the load + flow-work compensation for load-transfer vapor
+    Q_external: -Q_load + Q_comp_load - Q_ambient_chamber, // loses heat to the load + flow-work compensation for load-transfer vapor + ambient loss
     Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
     wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };

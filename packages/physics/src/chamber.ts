@@ -22,6 +22,8 @@ export interface ChamberParams {
   /** Passive pressure-relief setpoint (Pa). When total pressure exceeds this, excess vapor
    *  (or air if needed) is vented. Undefined = no relief (default, back-compat). */
   relief_pressure_Pa?: number;
+  /** Ambient heat-loss coefficient (W/K), chamber wall/gas → atmosphere. Default 0 (back-compat). */
+  h_ambient_W_per_K?: number;
 }
 
 export interface ChamberPressureBreakdown {

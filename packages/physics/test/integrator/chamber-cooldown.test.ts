@@ -46,6 +46,25 @@ function settle(jacket_chamber_h: number, chamber_wall_h: number): number {
   return K_to_C(s.chamber.T); // durable equilibrium (200 s, relief-pinned)
 }
 
+describe('chamber ambient heat loss', () => {
+  it('with ambient loss enabled, a starved chamber loses more heat than without', () => {
+    const SP = C_to_K(134);
+    const mk = (): SystemState => ({
+      chamber: { m_air: 1e-6, m_vap: (p_sat_water(SP) * 0.15) / (R_VAP * SP), m_liq: 0.02, T: SP, T_wall: SP },
+      jacket: { m_air: 0, m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(138)), m_liq: 0, T: C_to_K(138), T_wall: C_to_K(138) },
+      generator: null, load: buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], SP), f0_minutes: 0, time_s: 0,
+    });
+    const run = (h_ambient: number) => {
+      const base = holdParams();
+      const p = { ...base, chamber: { ...base.chamber, h_ambient_W_per_K: h_ambient } } as SystemParams;
+      let s = mk();
+      for (let i = 0; i < 2000; i++) s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
+      return s.chamber.T;
+    };
+    expect(run(50)).toBeLessThan(run(0) - 0.5); // ambient loss cools measurably more than no loss
+  });
+});
+
 describe('plant fidelity — chamber stays within EN 285 band when steam valve is shut', () => {
   it('durably settles within the band ceiling (relief-pinned), never runs away hot', () => {
     // Production calibration. Durable equilibrium ≈ 135.5 °C (relief pin at 3.2 bar), well below
