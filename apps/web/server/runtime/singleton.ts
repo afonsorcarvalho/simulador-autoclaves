@@ -120,6 +120,7 @@ export interface Runtime {
   cycle_started_at_s: number;
   params: SystemParams;
   timeScale: number;
+  controller: { band_low: number; band_high: number };
   startCycle(cycle: CycleConfig): void;
   stopCycle(): void;
   tick(): Promise<void>;
@@ -135,6 +136,7 @@ class RuntimeImpl implements Runtime {
   params: SystemParams;
   // Default 2: with bootstrap's 100ms wall tick and TICK_DT_S=0.05, 2 ticks/firing = 1× real time. Keep these three in sync.
   timeScale = 2;
+  controller = { band_low: 0.1, band_high: 0.5 };
 
   constructor() {
     this.bridge = new VirtualEsp32Bridge();
@@ -170,7 +172,7 @@ class RuntimeImpl implements Runtime {
   async tick(): Promise<void> {
     const t = this.orchestrator.getState().time_s;
     if (this.plc) {
-      await this.plc.tick(t);
+      await this.plc.tick(t, this.controller);
     }
     await this.orchestrator.tick();
     const phase = this.plc ? this.plc.getPhase() : 'IDLE';

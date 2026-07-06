@@ -17,6 +17,12 @@ describe('chamber steam valve bang-bang', () => {
     expect(chamberValveBangBang(134.3, SP, true)).toBe(true); // was open → stay open
     expect(chamberValveBangBang(134.3, SP, false)).toBe(false); // was closed → stay closed
   });
+  it('uses custom band offsets when provided', () => {
+    // band_low=1.0, band_high=2.0 → open below SP+1.0, close above SP+2.0
+    expect(chamberValveBangBang(134.9, SP, false, 1.0, 2.0)).toBe(true);
+    expect(chamberValveBangBang(136.1, SP, true, 1.0, 2.0)).toBe(false);
+    expect(chamberValveBangBang(135.5, SP, true, 1.0, 2.0)).toBe(true); // in band, hold
+  });
 });
 
 function makeCycle(): CycleConfig {

@@ -42,9 +42,11 @@ export function chamberValveBangBang(
   T_chamber_C: number,
   SP_C: number,
   prevOpen: boolean,
+  band_low_C = 0.1,
+  band_high_C = 0.5,
 ): boolean {
-  if (T_chamber_C < SP_C + 0.1) return true;
-  if (T_chamber_C > SP_C + 0.5) return false;
+  if (T_chamber_C < SP_C + band_low_C) return true;
+  if (T_chamber_C > SP_C + band_high_C) return false;
   return prevOpen;
 }
 
@@ -74,7 +76,7 @@ export class VirtualPLC {
     return this.lastTickTime_s - this.sm.phaseStartedAt;
   }
 
-  async tick(time_s: number): Promise<void> {
+  async tick(time_s: number, controller?: { band_low: number; band_high: number }): Promise<void> {
     this.lastTickTime_s = time_s;
     const sensors = await this.readSensors();
     this.sm.update(time_s, sensors);
@@ -83,6 +85,8 @@ export class VirtualPLC {
       sensors.T_chamber_C,
       this.setpoint_C,
       this.chamberValveOpen,
+      controller?.band_low,
+      controller?.band_high,
     );
     const setpoints = this.commandsFor(this.sm.phase, this.chamberValveOpen);
     await this.applyValves(setpoints);
