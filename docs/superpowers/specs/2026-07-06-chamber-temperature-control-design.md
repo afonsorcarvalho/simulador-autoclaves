@@ -20,9 +20,14 @@ regulada por um **bang-bang de temperatura na válvula de vapor da câmara**: se
 `T < 134,1`, fecha quando `T > 134,5` (histerese). Fecha a válvula → câmara arrefece abaixo de 134,1 →
 reabre. Oscila apertado → dentro da banda. O modelo não tem este laço.
 
-## Objetivo / aceitação (EN 285)
+## Objetivo / aceitação
 
-- **Banda:** T da câmara ∈ **[SP, SP+3] °C** durante todo o HOLD (era +10). Idealmente [SP+0.1, SP+0.5].
+- **[PLANTA — o essencial] Fidelidade:** com `V_STEAM_IN_INT` fechada no HOLD, `dT_chamber/dt < 0`
+  (a câmara arrefece até reabrir). É isto que faz o bang-bang de QUALQUER controlador (virtual ou PLC
+  real) funcionar. Sem isto, o SP-B falha, por mais bem afinado que esteja o controlador de referência.
+- **[EN 285] Banda:** com o controlador de referência a atuar, T da câmara ∈ **[SP, SP+3] °C** durante
+  todo o HOLD (era +10). Idealmente [SP+0.1, SP+0.5]. A válvula da câmara **cicla** (não fica sempre
+  aberta).
 - **F0** acumula no nó testemunho, monótono, valor de confiança (energia já conserva pelo SP-A).
 - **Queda na secagem visível:** com a câmara saturada a 134, a carga molha no come-up (condensação) →
   faz flash no DRY → testemunho cai.
@@ -34,6 +39,30 @@ reabre. Oscila apertado → dentro da banda. O modelo não tem este laço.
   `chamber.ts`).
 - **Topologia:** `V_STEAM_IN_INT` passa a ser alimentada **do jacket** (não do gerador a 148 °C) — a
   fonte nunca é mais quente que o jacket, reduz o overshoot.
+
+## Arquitetura (emulador HIL — planta vs controlador) — CRÍTICO
+
+Este projeto é um **emulador Hardware-in-the-Loop de autoclave**. Objetivo final: o utilizador programa
+um **PLC real** (externo, Modbus master), liga hardware que fala com o emulador, e desenvolve/testa o
+software de controlo **sem uma autoclave física**. O register map já reflete isto:
+`discrete_inputs` = "PLC outputs read by ESP32 (valve commands)"; `holding_registers` = sensores que o
+emulador publica (PT100/4-20 mA) para o PLC ler.
+
+Consequências que **governam este sub-projeto**:
+
+1. **O emulador é a PLANTA** (física + publicar sensores + honrar atuadores via Modbus). **O controlo é
+   externo** (o PLC real). Não cravar controlo na planta; manter a planta **agnóstica ao controlador**.
+2. O **bang-bang é um controlador de REFERÊNCIA / auto-teste**, não a entrega. Vive no virtual PLC
+   (`plc.ts`) e no scenario CLI (harness de teste), claramente separado e **substituível** — quando o
+   PLC real conduzir via Modbus (SP5), o virtual PLC sai da frente. A entrega do SP-B **não** é "um bom
+   controlador"; é a planta responder de forma fiel a QUALQUER controlador.
+3. **Entrega principal = FIDELIDADE DA PLANTA.** O critério que faz ou quebra o SP-B: com
+   `V_STEAM_IN_INT` **fechada** no HOLD, a câmara tem de **arrefecer** (`dT_chamber/dt < 0`) até poder
+   reabrir. Se a planta não arrefecer (parede/jacket a segurar o gás quente), o bang-bang do PLC real
+   **não funcionará** na autoclave emulada — e é o PLC real que interessa. Sensor `T_CHAMBER_INT`
+   publicado (já existe) e atuador `V_STEAM_IN_INT` honrado venha de quem vier.
+4. Sem novos sensores a expor (confirmado com o utilizador) — a banda EN 285 é verificada com o
+   `T_CHAMBER_INT` existente.
 
 ## Desenho
 
@@ -94,8 +123,11 @@ primeiro).
 
 ## Testes
 
-- **Unit** (bang-bang): abre em `T<SP+0.1`, fecha em `T>SP+0.5`, mantém na banda (histerese). No PLC e
-  no CLI.
+- **[PLANTA] Fidelidade (o teste que define o SP-B):** cenário no HOLD com `V_STEAM_IN_INT` forçada
+  fechada → asserir `dT_chamber/dt < 0` (câmara arrefece). Controlador-agnóstico: só exercita a planta.
+  Se falhar, calibrar `wall_h`/`jacket_chamber_h` até passar.
+- **Unit** (bang-bang, controlador de referência): abre em `T<SP+0.1`, fecha em `T>SP+0.5`, mantém na
+  banda (histerese). No PLC e no CLI.
 - **Integração** (`ster-134`): T da câmara ∈ [SP, SP+3] em todo o HOLD; a válvula da câmara **cicla**
   (abre/fecha, não fica sempre aberta); F0 no testemunho monótono; queda na secagem visível
   (`m_water_load` da carga sobe no come-up e vai a ~0 no DRY, testemunho cai).
