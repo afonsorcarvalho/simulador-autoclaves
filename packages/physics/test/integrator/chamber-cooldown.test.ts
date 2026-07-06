@@ -44,42 +44,6 @@ function holdParams(jacket_chamber_h = 150, chamber_wall_h = 200): SystemParams 
   };
 }
 
-function settle(jacket_chamber_h: number, chamber_wall_h: number): number {
-  const SP = C_to_K(134);
-  const T0 = C_to_K(135.5); // 1.5 °C above setpoint, as after a steam burst
-  const load = buildLoadState([{ material: 'COTTON_TEXTILE', mass_kg: 5, witness: true }], SP);
-  let s: SystemState = {
-    chamber: {
-      m_air: 1e-6,
-      m_vap: (p_sat_water(T0) * 0.15) / (R_VAP * T0),
-      m_liq: 0.02,
-      T: T0,
-      T_wall: C_to_K(135),
-    },
-    jacket: {
-      m_air: 0,
-      m_vap: (3.54e5 * 0.025) / (R_VAP * C_to_K(138)),
-      m_liq: 0,
-      T: C_to_K(138),
-      T_wall: C_to_K(138),
-    },
-    generator: null,
-    load,
-    f0_minutes: 0,
-    time_s: 0,
-  };
-  for (let i = 0; i < 4000; i++) {
-    s = system_step(
-      s,
-      holdParams(jacket_chamber_h, chamber_wall_h),
-      {},
-      { heater_gen: false, pump_vac: false },
-      0.05,
-    ); // 200 s
-  }
-  return K_to_C(s.chamber.T); // durable equilibrium (200 s, relief-pinned)
-}
-
 describe('chamber ambient heat loss', () => {
   it('with ambient loss enabled, a starved chamber loses more heat than without', () => {
     const SP = C_to_K(134);
