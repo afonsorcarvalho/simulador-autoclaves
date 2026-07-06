@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getRuntime, resetRuntime } from '../../server/runtime/singleton.js';
+import type { CycleConfig } from '../../server/virtual-plc/cycle-config.js';
 
 describe('getRuntime', () => {
   beforeEach(() => {
@@ -112,5 +113,26 @@ describe('getRuntime', () => {
     await r.tick();
     await r.tick();
     expect(seen.length).toBe(2);
+  });
+
+  it('startCycle merges cycleOverride over the passed config', () => {
+    const r = getRuntime();
+    const cycle: CycleConfig = {
+      name: 'test',
+      sterilization_T_C: 134,
+      sterilization_P_bar: 3.04,
+      hold_duration_s: 420,
+      prevac_pulses: 3,
+      prevac_vacuum_target_bar: 0.15,
+      prevac_steam_target_bar: 2.0,
+      preheat_duration_s: 300,
+      dry_duration_s: 500,
+      f0_target_min: 100,
+    };
+    r.cycleOverride = { sterilization_T_C: 121, hold_duration_s: 900 };
+    r.startCycle(cycle);
+    expect(r.effectiveCycle?.sterilization_T_C).toBe(121);
+    expect(r.effectiveCycle?.hold_duration_s).toBe(900);
+    expect(r.effectiveCycle?.prevac_pulses).toBe(3); // not overridden
   });
 });

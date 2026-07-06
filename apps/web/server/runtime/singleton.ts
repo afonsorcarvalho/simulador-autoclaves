@@ -121,6 +121,8 @@ export interface Runtime {
   params: SystemParams;
   timeScale: number;
   controller: { band_low: number; band_high: number };
+  cycleOverride: Partial<CycleConfig>;
+  effectiveCycle: CycleConfig | null;
   startCycle(cycle: CycleConfig): void;
   stopCycle(): void;
   tick(): Promise<void>;
@@ -137,6 +139,8 @@ class RuntimeImpl implements Runtime {
   // Default 2: with bootstrap's 100ms wall tick and TICK_DT_S=0.05, 2 ticks/firing = 1× real time. Keep these three in sync.
   timeScale = 2;
   controller = { band_low: 0.1, band_high: 0.5 };
+  cycleOverride: Partial<CycleConfig> = {};
+  effectiveCycle: CycleConfig | null = null;
 
   constructor() {
     this.bridge = new VirtualEsp32Bridge();
@@ -152,14 +156,16 @@ class RuntimeImpl implements Runtime {
   }
 
   startCycle(cycle: CycleConfig): void {
-    this.plc = new VirtualPLC(cycle, this.bridge);
+    const merged: CycleConfig = { ...cycle, ...this.cycleOverride };
+    this.effectiveCycle = merged;
+    this.plc = new VirtualPLC(merged, this.bridge);
     this.plc.start();
     this.cycle_running = true;
     this.cycle_started_at_s = this.orchestrator.getState().time_s;
     // zod's optional() widens props to `| undefined`; exactOptionalPropertyTypes
     // rejects that against LoadItemConfig. Runtime-identical — cast.
     this.orchestrator.setLoadState(
-      buildLoadState(cycle.load as LoadItemConfig[] | undefined, C_to_K(22)),
+      buildLoadState(merged.load as LoadItemConfig[] | undefined, C_to_K(22)),
     );
   }
 
