@@ -27,9 +27,11 @@ function defaultParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      // SP-B: relief is now a SAFETY CAP (3.4 bar), not the operating point. The chamber temperature
-      // is regulated by the steam-valve controller (bang-bang) against the loss paths below.
-      relief_pressure_Pa: bar_to_Pa(3.4),
+      // SP-B: relief is a SAFETY CAP, not the operating point. Sized so its saturation temperature
+      // T_sat(3.25 bar) ≈ 135.9 °C stays under the EN 285 +3 ceiling (137) — an open steam burst
+      // saturates the chamber toward the relief pressure, so the relief sets the overshoot ceiling.
+      // The steam-valve controller (bang-bang) regulates temperature against the loss paths below.
+      relief_pressure_Pa: bar_to_Pa(3.25),
       // ponytail: vessel-calibration knobs — ambient loss (door/penetrations) + passive condensate
       // trap. Sized so a steam-starved chamber falls below setpoint in ~50 s (controllable). Tune on
       // the real vessel. See docs .../2026-07-06-chamber-temperature-control-design.md.

@@ -87,7 +87,7 @@ describe('condensate drain', () => {
 // knobs (ponytail) tuned here against the controllability gate.
 const H_AMBIENT_W_PER_K = 10;
 const DRAIN_KG_PER_S = 2e-5;
-const CHAMBER_RELIEF_PA = 3.4e5;
+const CHAMBER_RELIEF_PA = 3.25e5;
 
 function settleWithLosses(): number {
   const SP = C_to_K(134);
