@@ -412,9 +412,10 @@ describe('knob registry', () => {
   it('get∘set round-trips for every knob', () => {
     const rt = getRuntime();
     for (const k of KNOBS) {
-      const v = (k.min + k.max) / 2;
-      k.set(rt, v);
-      expect(k.get(rt)).toBeCloseTo(v, 6);
+      // Use min: an exact point on the value lattice (integers for rounding knobs
+      // like time.scale/prevac_pulses), so identity holds without rounding loss.
+      k.set(rt, k.min);
+      expect(k.get(rt)).toBeCloseTo(k.min, 6);
     }
   });
 
@@ -573,7 +574,8 @@ export const KNOBS: KnobDescriptor[] = [
     max: 4,
     step: 0.05,
     timing: 'live',
-    get: (rt) => rt.params.chamber.relief_pressure_Pa / PA_PER_BAR,
+    // `!`: physics types mark these optional/nullable, but defaultParams() always populates them.
+    get: (rt) => rt.params.chamber.relief_pressure_Pa! / PA_PER_BAR,
     set: (rt, v) => {
       rt.params.chamber.relief_pressure_Pa = bar_to_Pa(v);
     },
@@ -618,9 +620,9 @@ export const KNOBS: KnobDescriptor[] = [
     max: 60000,
     step: 1000,
     timing: 'live',
-    get: (rt) => rt.params.generator.heater_power_W,
+    get: (rt) => rt.params.generator!.heater_power_W,
     set: (rt, v) => {
-      rt.params.generator.heater_power_W = v;
+      rt.params.generator!.heater_power_W = v;
     },
   },
   {
@@ -633,9 +635,9 @@ export const KNOBS: KnobDescriptor[] = [
     max: 5e-5,
     step: 1e-6,
     timing: 'live',
-    get: (rt) => rt.params.valves.V_STEAM_IN_INT.params.Cv,
+    get: (rt) => rt.params.valves.V_STEAM_IN_INT!.params.Cv,
     set: (rt, v) => {
-      rt.params.valves.V_STEAM_IN_INT.params.Cv = v;
+      rt.params.valves.V_STEAM_IN_INT!.params.Cv = v;
     },
   },
   {
@@ -648,9 +650,9 @@ export const KNOBS: KnobDescriptor[] = [
     max: 5e-4,
     step: 1e-5,
     timing: 'live',
-    get: (rt) => rt.params.valves.V_VAC.params.Cv,
+    get: (rt) => rt.params.valves.V_VAC!.params.Cv,
     set: (rt, v) => {
-      rt.params.valves.V_VAC.params.Cv = v;
+      rt.params.valves.V_VAC!.params.Cv = v;
     },
   },
   {
@@ -663,9 +665,9 @@ export const KNOBS: KnobDescriptor[] = [
     max: 2e-4,
     step: 1e-6,
     timing: 'live',
-    get: (rt) => rt.params.valves.V_EXHAUST.params.Cv,
+    get: (rt) => rt.params.valves.V_EXHAUST!.params.Cv,
     set: (rt, v) => {
-      rt.params.valves.V_EXHAUST.params.Cv = v;
+      rt.params.valves.V_EXHAUST!.params.Cv = v;
     },
   },
 
