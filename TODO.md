@@ -30,6 +30,14 @@
 
 ## Feito
 
+- 2026-07-07 — **Painel `/knobs` no dashboard** (ramo `feat/knobs-dashboard`). Registry declarativo
+  (`server/knobs/registry.ts`) como fonte única — cada knob traz acessoras `get/set` tipadas; store
+  load/apply/persist/reset num ficheiro override (`knobs.override.json`, gitignored, aplicado no boot);
+  API `/api/knobs` GET/POST + `/reset` (validação range, 409 para knobs de ciclo mid-cycle); página
+  `/knobs` com painel agrupado (ciclo/planta/controlador/tempo). Plant muta `rt.params` in-place (live),
+  time via `rt.timeScale` (scheduler lê cada firing), controller via offsets ao bang-bang, cycle via
+  `rt.cycleOverride` mergido em `startCycle` (só pré-arranque). 92 testes web verdes; lint/typecheck/
+  build verdes. Spec+plano em docs/superpowers/. Falta verificação manual no browser (Task 8 Step 6).
 - 2026-07-06 — **SP-B — Controlo de temperatura da câmara (banda EN 285)** (ramo
   `feat/chamber-temp-control`). Emulador HIL: planta agnóstica ao controlador; o bang-bang é
   controlador de **referência** no virtual PLC (substituível pelo PLC real via Modbus, SP5). Achado:
