@@ -1,0 +1,18 @@
+{
+  "cycle.sterilization_T": 134,
+  "cycle.hold_duration": 420,
+  "cycle.prevac_pulses": 3,
+  "cycle.prevac_vacuum_target": 0.15,
+  "cycle.prevac_steam_target": 2.0,
+  "cycle.dry_duration": 500,
+  "plant.chamber.relief": 3.25,
+  "plant.chamber.h_ambient": 10,
+  "plant.chamber.drain": 0.00002,
+  "plant.generator.heater_power": 36000,
+  "plant.valve.steam_in_int_cv": 0.000008,
+  "plant.valve.vac_cv": 0.0001,
+  "plant.valve.exhaust_cv": 0.00002,
+  "controller.band_low": 0.1,
+  "controller.band_high": 0.5,
+  "time.scale": 2
+}

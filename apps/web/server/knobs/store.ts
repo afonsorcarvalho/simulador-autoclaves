@@ -8,6 +8,18 @@ export function defaultOverridePath(): string {
   return resolve(process.cwd(), 'knobs.override.json');
 }
 
+/** Versioned factory-defaults file (committed). Baseline for reset; falls back to
+ * registry `default` per-knob if the file is missing or a key is absent/invalid. */
+export function defaultFactoryPath(): string {
+  return resolve(process.cwd(), 'knobs.factory.json');
+}
+
+/** Factory value for one knob: file value if valid, else the registry default. */
+function factoryValue(k: (typeof KNOBS)[number], factory: Record<string, number>): number {
+  const v = factory[k.id];
+  return v !== undefined && Number.isFinite(v) && v >= k.min && v <= k.max ? v : k.default;
+}
+
 function readFile(path: string): Record<string, number> {
   if (!existsSync(path)) return {};
   try {
@@ -28,6 +40,12 @@ function validate(id: string, value: number): void {
   if (value < k.min || value > k.max) {
     throw new Error(`value ${value} out of range [${k.min}, ${k.max}] for "${id}"`);
   }
+}
+
+/** Apply the factory baseline to the runtime (boot, before overrides). */
+export function applyFactory(rt: Runtime, path = defaultFactoryPath()): void {
+  const factory = readFile(path);
+  for (const k of KNOBS) k.set(rt, factoryValue(k, factory));
 }
 
 /** Apply persisted overrides on top of defaults (boot). */
@@ -62,8 +80,13 @@ export function currentValues(rt: Runtime): Record<string, number> {
   return out;
 }
 
-/** Restore all defaults and delete the override file. */
-export function resetAll(rt: Runtime, path = defaultOverridePath()): void {
-  for (const k of KNOBS) k.set(rt, k.default);
+/** Restore the factory baseline and delete the override file. */
+export function resetAll(
+  rt: Runtime,
+  path = defaultOverridePath(),
+  factoryPath = defaultFactoryPath(),
+): void {
+  const factory = readFile(factoryPath);
+  for (const k of KNOBS) k.set(rt, factoryValue(k, factory));
   if (existsSync(path)) rmSync(path);
 }

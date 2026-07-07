@@ -2,6 +2,7 @@
 
 import { useSnapshot } from '../../lib/useSnapshot';
 import { ConnectionIndicator } from '../../components/ConnectionIndicator';
+import { CycleControl } from '../../components/CycleControl';
 import { ValvePanel } from '../../components/virtual-plc/ValvePanel';
 
 export default function VirtualPlcPage() {
@@ -12,6 +13,7 @@ export default function VirtualPlcPage() {
         <h1 className="text-2xl font-bold">Virtual PLC</h1>
         <ConnectionIndicator connected={connected} />
       </div>
+      <CycleControl snapshot={snapshot} />
       <p className="text-slate-400 text-sm">
         Manual valve overrides while no cycle is running. Useful for testing individual valves and
         seeing physics response without the cycle state machine.

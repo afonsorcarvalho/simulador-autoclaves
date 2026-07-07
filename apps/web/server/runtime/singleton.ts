@@ -16,7 +16,7 @@ import {
   buildLoadState,
 } from '@sim/physics';
 import { readCommands } from '../orchestrator/command-reader.js';
-import { applyOverrides } from '../knobs/store.js';
+import { applyFactory, applyOverrides } from '../knobs/store.js';
 
 const TICK_DT_S = 0.05;
 
@@ -154,9 +154,10 @@ class RuntimeImpl implements Runtime {
       tickDt_s: TICK_DT_S,
     });
     void this.bridge.connect();
-    // Load persisted knob overrides on top of defaults. Safe: no MVP knob feeds the
-    // initial state (preheatedInitial reads only chamber.V, which is not a knob).
+    // Apply the versioned factory baseline, then persisted overrides on top. Safe: no
+    // MVP knob feeds the initial state (preheatedInitial reads only chamber.V, not a knob).
     try {
+      applyFactory(this);
       applyOverrides(this);
     } catch (err) {
       console.error('failed to apply knob overrides:', err);
