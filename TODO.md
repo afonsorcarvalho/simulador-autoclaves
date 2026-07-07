@@ -30,6 +30,13 @@
 
 ## Feito
 
+- 2026-07-07 — **Controlo de ciclo + velocidade live + ficheiro de fábrica** (ramo
+  `feat/knobs-dashboard`). Componente `CycleControl` (Start/Stop) extraído e reutilizado em Home/Live/
+  Virtual PLC (dedup). `SpeedControl` (slider `time.scale`) na Live — muda a velocidade de simulação em
+  tempo real a meio do ciclo (scheduler lê `runtime.timeScale` cada firing). `knobs.factory.json`
+  versionado = baseline de fábrica; "Repor defaults" restaura DESTE ficheiro (fallback ao registry por
+  knob); boot aplica fábrica → overrides. 95 testes web verdes (+3 factory). Verificado por Playwright:
+  Stop na Live (F0 101→IDLE), slider 2→50 acelerou 2.1→52.5 sim-s/2s live, reset restaura fábrica.
 - 2026-07-07 — **Painel `/knobs` no dashboard** (ramo `feat/knobs-dashboard`). Registry declarativo
   (`server/knobs/registry.ts`) como fonte única — cada knob traz acessoras `get/set` tipadas; store
   load/apply/persist/reset num ficheiro override (`knobs.override.json`, gitignored, aplicado no boot);
