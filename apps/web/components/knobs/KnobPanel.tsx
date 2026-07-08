@@ -80,6 +80,11 @@ export function KnobPanel({ cycleRunning }: { cycleRunning: boolean }) {
                     max={k.max}
                     step={k.step ?? 'any'}
                     onBlur={(e) => void commit(k.id, e.target.value)}
+                    // Enter must save too — blur alone silently drops a typed change,
+                    // so the shown value diverges from what the next cycle actually uses.
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                    }}
                     className="bg-slate-700 border border-slate-600 rounded px-2 py-1 font-mono disabled:opacity-50"
                   />
                 </label>
