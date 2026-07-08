@@ -16,6 +16,7 @@ export function KnobPanel({ cycleRunning }: { cycleRunning: boolean }) {
   const [knobs, setKnobs] = useState<KnobMeta[]>([]);
   const [values, setValues] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -38,6 +39,8 @@ export function KnobPanel({ cycleRunning }: { cycleRunning: boolean }) {
       await setKnob(id, value);
       setValues((v) => ({ ...v, [id]: value }));
       setError(null);
+      setSaved(id);
+      setTimeout(() => setSaved((s) => (s === id ? null : s)), 1500);
     } catch (e) {
       setError((e as Error).message);
       void load(); // reverte para o valor do servidor
@@ -70,6 +73,7 @@ export function KnobPanel({ cycleRunning }: { cycleRunning: boolean }) {
                 <label key={k.id} className="flex flex-col gap-1 text-sm">
                   <span className="opacity-80">
                     {k.label} {k.unit && <span className="opacity-50">({k.unit})</span>}
+                    {saved === k.id && <span className="text-green-400 ml-1">✓ guardado</span>}
                   </span>
                   <input
                     type="number"
