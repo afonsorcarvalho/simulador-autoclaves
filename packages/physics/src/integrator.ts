@@ -14,8 +14,9 @@ import {
   type GeneratorParams,
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
+import { p_sat_water } from './saturation.js';
 import { choked_flow, type ValveParams } from './valve.js';
-import { P_ATM, GAMMA_AIR, GAMMA_VAP } from './constants.js';
+import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF, CP_VAP, CV_VAP } from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
@@ -189,6 +190,8 @@ export function system_step(
       acc[topo.from].vap_out += vap_share;
     }
     if (topo.from === 'generator') {
+      // Generator emits plain vapor mass at its T; the latent offset U_FG0 is applied by the
+      // receiving chamber_step's H_in, not here — so latent is counted exactly once.
       generatorVaporOutflow += m;
     }
 
@@ -202,10 +205,58 @@ export function system_step(
     // Flow to atmosphere/vacuum leaves the system (already subtracted from source)
   }
 
+  // Load step: chamber gas ↔ load thermal exchange
+  // Densidade do gás da câmara p/ escalar convecção (∝ ρ)
+  const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
+  const p_vap_chamber = chamber_pressure(state.chamber, params.chamber).p_vap;
+  const loadResult = load_step(
+    state.load,
+    params.load,
+    {
+      T_gas: state.chamber.T,
+      rho_gas: rho_gas_chamber,
+      rho_gas_atm: RHO_GAS_ATM_REF,
+      T_jacket: state.jacket.T,
+      p_sat_at: p_sat_water,
+      p_vap_chamber,
+      chamber_has_vapor: state.chamber.m_vap > 0,
+      chamber_vapor_kg: state.chamber.m_vap,
+    },
+    dt,
+  );
+  const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
+
+  // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai).
+  // vaporToChamber_kg é uma MASSA (já ·dt); os acumuladores são TAXAS (kg/s), pois
+  // chamber_step volta a multiplicar por dt. Converter na fronteira dividindo por dt.
+  const loadVapRate = loadResult.vaporToChamber_kg / dt; // kg → kg/s nesta fronteira
+  if (loadVapRate > 0) {
+    acc.chamber.vap_in += loadVapRate;
+    acc.chamber.inflow_T_weighted += loadVapRate * state.chamber.T;
+    acc.chamber.inflow_T_mass += loadVapRate;
+  } else if (loadVapRate < 0) {
+    acc.chamber.vap_out += -loadVapRate;
+  }
+
+  // Load condensation/flash is an IN-PLACE phase transfer at the load surface — it carries NO
+  // flow work. But chamber_step routes this vapor through its advective H_in/H_out, which apply
+  // the CP basis (flow work (CP_VAP−CV_VAP)·T). Compensate it back out so the chamber loses/gains
+  // the load-transfer vapor on the STORAGE (CV) basis, matching the load's L_eff credit. This
+  // closes the ~90 kJ (come-up) flow-work residual. Valve/exhaust outflow keeps the CP basis
+  // (real flow work leaving the system) — it is NOT part of loadVapRate.
+  // ponytail: uses T_ch; when valves co-inject vapor the same tick, chamber_step blends inflow_T
+  //   so a tiny (CP−CV)·(inflow_T−T_ch)·rate residual remains. Second-order; revisit only if a
+  //   simultaneous valve+flash scenario ever needs Joule-tight conservation.
+  // ponytail: also assumes dt small enough that condensation doesn't saturate the vap_out cap
+  //   (integrator m_vap/(GAMMA_VAP·dt), chamber.ts 0.5·avail_vap); if it did, Q_comp_load would
+  //   over-cancel the un-transported remainder. Negligible while condensation ≪ chamber m_vap.
+  const Q_comp_load = (CP_VAP - CV_VAP) * state.chamber.T * -loadVapRate;
+
   // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
   // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
   // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
   // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.33).
+  // Runs after the load injection so the load's condensation outflow is included in the cap.
   for (const key of ['chamber', 'jacket'] as const) {
     const src = state[key] as ChamberState;
     const max_air_out = src.m_air / (GAMMA_AIR * dt);
@@ -214,30 +265,35 @@ export function system_step(
     if (acc[key].vap_out > max_vap_out) acc[key].vap_out = max_vap_out;
   }
 
-  // Load step: chamber gas ↔ load thermal exchange
-  const loadResult = load_step(state.load, params.load, state.chamber.T, dt);
-  const Q_load = loadResult.Q_from_gas; // positive = removed from gas, goes to load
-
   // Jacket↔chamber wall conduction coupling
   const h_jc = params.jacket_chamber_h_W_per_K ?? 0;
   const Q_jacket_to_chamber = h_jc > 0 ? h_jc * (state.jacket.T - state.chamber.T) : 0;
   // Positive: heat flows from jacket to chamber (jacket hotter)
 
+  // ponytail: ambient loss is a vessel-calibration knob (door/penetration losses); tuned to the band later.
+  const Q_ambient_chamber =
+    (params.chamber.h_ambient_W_per_K ?? 0) * (state.chamber.T - params.external.atmosphere_T);
+
+  // ponytail: passive condensate-trap rate is a vessel-calibration knob; capped at available liquid.
+  const chamberDrain_kg_s = Math.min(params.chamber.drain_kg_per_s ?? 0, state.chamber.m_liq / dt);
+
   // Chamber step (gas absorbs/gives heat to load; gains from jacket via wall)
   const chamberFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.chamber),
     inflow_T: inflowT(acc.chamber, state.chamber.T),
-    outflow: speciesOut(acc.chamber),
-    Q_external: -Q_load + Q_jacket_to_chamber, // gains from jacket, loses to load
+    outflow: { ...speciesOut(acc.chamber), liq: chamberDrain_kg_s },
+    Q_external: -Q_load + Q_comp_load - Q_ambient_chamber, // loses heat to the load + flow-work compensation for load-transfer vapor + ambient loss
+    Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
+    wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };
   const nextChamber = chamber_step(state.chamber, params.chamber, chamberFluxes, dt);
 
-  // Jacket step (loses heat to chamber via wall)
+  // Jacket step (loses heat to chamber via wall; radia p/ a carga)
   const jacketFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.jacket),
     inflow_T: inflowT(acc.jacket, state.jacket.T),
     outflow: speciesOut(acc.jacket),
-    Q_external: -Q_jacket_to_chamber, // loses to chamber
+    Q_external: -Q_jacket_to_chamber - loadResult.Q_rad_from_jacket, // loses to chamber + radia p/ carga
   };
   const nextJacket = chamber_step(state.jacket, params.jacket, jacketFluxes, dt);
 
@@ -253,10 +309,11 @@ export function system_step(
     );
   }
 
-  // F0 accumulator — uses T_fabric (witness sensor) from old load state
+  // F0 accumulator — referência é o nó testemunho (witness)
+  const witness = loadResult.next.nodes.find((n) => n.isWitness) ?? loadResult.next.nodes[0];
   const f0 = new F0Accumulator();
   f0.value_minutes = state.f0_minutes;
-  f0.step(state.load.T_fabric, dt);
+  if (witness) f0.step(witness.T, dt);
 
   return {
     chamber: nextChamber,

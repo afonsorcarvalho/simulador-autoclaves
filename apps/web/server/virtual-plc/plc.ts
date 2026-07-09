@@ -34,14 +34,33 @@ const ALL_VALVES: (keyof ValveSetpoints)[] = [
   'HEATER_GEN',
 ];
 
+/** Chamber steam-valve bang-bang (REFERENCE controller for self-test; the real external PLC
+ *  replaces this over Modbus in SP5). Open below SP+0.1, close above SP+0.5, hold previous state
+ *  in the hysteresis band. The plant lets the chamber fall below setpoint when the valve is shut
+ *  (ambient loss + condensate drain), so this loop can regulate the chamber into the EN 285 band. */
+export function chamberValveBangBang(
+  T_chamber_C: number,
+  SP_C: number,
+  prevOpen: boolean,
+  band_low_C = 0.1,
+  band_high_C = 0.5,
+): boolean {
+  if (T_chamber_C < SP_C + band_low_C) return true;
+  if (T_chamber_C > SP_C + band_high_C) return false;
+  return prevOpen;
+}
+
 export class VirtualPLC {
   private readonly sm: CycleStateMachine;
   private readonly access: RegisterAccess;
   private lastTickTime_s = 0;
+  private readonly setpoint_C: number;
+  private chamberValveOpen = false;
 
   constructor(cycle: CycleConfig, bridge: ModbusBridge) {
     this.sm = new CycleStateMachine(cycle);
     this.access = new RegisterAccess(bridge);
+    this.setpoint_C = cycle.sterilization_T_C;
   }
 
   start(): void {
@@ -57,24 +76,33 @@ export class VirtualPLC {
     return this.lastTickTime_s - this.sm.phaseStartedAt;
   }
 
-  async tick(time_s: number): Promise<void> {
+  async tick(time_s: number, controller?: { band_low: number; band_high: number }): Promise<void> {
     this.lastTickTime_s = time_s;
     const sensors = await this.readSensors();
     this.sm.update(time_s, sensors);
-    const setpoints = this.commandsFor(this.sm.phase);
+    // Reference controller: chamber steam valve bang-bang on chamber temperature (real PLC replaces).
+    this.chamberValveOpen = chamberValveBangBang(
+      sensors.T_chamber_C,
+      this.setpoint_C,
+      this.chamberValveOpen,
+      controller?.band_low,
+      controller?.band_high,
+    );
+    const setpoints = this.commandsFor(this.sm.phase, this.chamberValveOpen);
     await this.applyValves(setpoints);
   }
 
   private async readSensors(): Promise<PLCSensors> {
     return {
       P_chamber_bar: await this.access.getAnalog('P_CHAMBER_INT'),
+      T_chamber_C: await this.access.getAnalog('T_CHAMBER_INT'),
       T_test_C: await this.access.getAnalog('T_TESTEMUNHO'),
       P_jacket_bar: await this.access.getAnalog('P_CHAMBER_EXT'),
-      F0_min: (await this.access.getAnalog('F0_X10')) / 10,
+      F0_min: await this.access.getAnalog('F0_X10'),
     };
   }
 
-  private commandsFor(phase: CyclePhase): ValveSetpoints {
+  private commandsFor(phase: CyclePhase, chamberValveOpen: boolean): ValveSetpoints {
     switch (phase) {
       case 'IDLE':
       case 'COMPLETE':
@@ -86,8 +114,12 @@ export class VirtualPLC {
       case 'PREVAC_STEAM':
         return { V_STEAM_IN_JACKET: true, V_STEAM_IN_INT: true, HEATER_GEN: true };
       case 'PRESSURIZE':
-      case 'HOLD':
+        // Come-up: chamber steam full-open for fast heat-up of the load to setpoint.
         return { V_STEAM_IN_JACKET: true, V_STEAM_IN_INT: true, HEATER_GEN: true };
+      case 'HOLD':
+        // Sterilization plateau: chamber steam valve regulated by the bang-bang (reference
+        // controller) to hold the EN 285 band. Real PLC replaces this over Modbus.
+        return { V_STEAM_IN_JACKET: true, V_STEAM_IN_INT: chamberValveOpen, HEATER_GEN: true };
       case 'EXHAUST':
         return { V_EXHAUST: true };
       case 'DRY':

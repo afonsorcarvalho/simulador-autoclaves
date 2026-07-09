@@ -3,7 +3,7 @@ import { publishSensors } from '../../server/orchestrator/sensor-publisher.js';
 import { RegisterAccess } from '../../server/bridge/register-access.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemState, SystemParams } from '@sim/physics';
-import { C_to_K } from '@sim/physics';
+import { C_to_K, buildLoadState } from '@sim/physics';
 
 function makeState(): SystemState {
   const T = C_to_K(134);
@@ -11,7 +11,10 @@ function makeState(): SystemState {
     chamber: { m_air: 0, m_vap: 0.3, m_liq: 0.1, T, T_wall: T },
     jacket: { m_air: 0, m_vap: 0.05, m_liq: 0, T: C_to_K(138), T_wall: C_to_K(138) },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: C_to_K(133), T_fabric: C_to_K(132) },
+    load: buildLoadState(
+      [{ material: 'COTTON_TEXTILE', mass_kg: 5, initial_T_C: 132, witness: true }],
+      T,
+    ),
     f0_minutes: 100,
     time_s: 600,
   };
@@ -22,14 +25,7 @@ function makeParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {},
     external: { steam_line_pressure: 500000, steam_line_T: C_to_K(160), atmosphere_T: C_to_K(22) },
   };
@@ -63,8 +59,10 @@ describe('publishSensors', () => {
 
     await publishSensors(bridge, state, params);
 
-    const f0_raw = await access.getAnalog('F0_X10');
-    expect(f0_raw).toBe(1000); // 100 min × 10
+    // getAnalog applies the register's ×10 scale → minutes; raw storage stays ×10.
+    expect(await access.getAnalog('F0_X10')).toBe(100); // 100 min
+    const [raw] = await bridge.readHoldingRegisters(0x4003, 1);
+    expect(raw).toBe(1000); // 100 min × 10 encoded
   });
 
   it('publishes pressure switch coils based on threshold logic', async () => {

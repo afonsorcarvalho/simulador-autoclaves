@@ -52,6 +52,18 @@ describe('emitCpp', () => {
     expect(out).not.toMatch(/#define\s+REG_WATCHDOG_MS_SCALE/);
   });
 
+  it('emits type-code macros and a TYPE macro per register', () => {
+    const out = emitCpp(parseRegisters(sampleYaml));
+    // type-code table
+    expect(out).toMatch(/#define\s+MB_TYPE_BOOL\s+0/);
+    expect(out).toMatch(/#define\s+MB_TYPE_INT16\s+1/);
+    expect(out).toMatch(/#define\s+MB_TYPE_UINT16\s+2/);
+    // resolved per register: discrete=bool, scaled holding=int16, explicit uint16
+    expect(out).toMatch(/#define\s+REG_V_FOO_TYPE\s+MB_TYPE_BOOL/);
+    expect(out).toMatch(/#define\s+REG_P_BAR_TYPE\s+MB_TYPE_INT16/);
+    expect(out).toMatch(/#define\s+REG_WATCHDOG_MS_TYPE\s+MB_TYPE_UINT16/);
+  });
+
   it('emits register count macro', () => {
     const out = emitCpp(parseRegisters(sampleYaml));
     expect(out).toMatch(/#define\s+REG_COUNT\s+3/);

@@ -34,3 +34,24 @@ export const RegisterFileSchema = z.object({
   registers: z.array(RegisterSchema).min(1),
 });
 export type RegisterFile = z.infer<typeof RegisterFileSchema>;
+
+export type ResolvedType = 'bool' | 'int16' | 'uint16';
+
+/**
+ * Resolve the storage type of a register. `type` is authoritative when present;
+ * otherwise coils/discrete inputs are bool and analog holding registers default
+ * to signed int16 (matching RegisterAccess in apps/web). Single source of truth
+ * shared by the TS/C++ emitters and the parser's overflow check.
+ */
+export function resolveType(reg: Register): ResolvedType {
+  if (reg.type !== undefined) return reg.type;
+  if (reg.space === 'coils' || reg.space === 'discrete_inputs') return 'bool';
+  return 'int16';
+}
+
+/** Inclusive storage bounds per resolved type. */
+export const TYPE_BOUNDS: Record<ResolvedType, { min: number; max: number }> = {
+  bool: { min: 0, max: 1 },
+  int16: { min: -32768, max: 32767 },
+  uint16: { min: 0, max: 65535 },
+};

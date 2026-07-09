@@ -28,12 +28,15 @@ export async function publishSensors(
 
   // Temperatures
   await access.setAnalog('T_CHAMBER_INT', K_to_C(state.chamber.T));
-  await access.setAnalog('T_TESTEMUNHO', K_to_C(state.load.T_fabric));
+  await access.setAnalog(
+    'T_TESTEMUNHO',
+    K_to_C((state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T),
+  );
   await access.setAnalog('T_CHAMBER_EXT', K_to_C(state.jacket.T));
   await access.setAnalog('T_GENERATOR', state.generator ? K_to_C(state.generator.T) : 0);
 
-  // F0 × 10
-  await access.setAnalog('F0_X10', state.f0_minutes * 10);
+  // F0 (register scale ×10 applied by RegisterAccess)
+  await access.setAnalog('F0_X10', state.f0_minutes);
 
   // Pressure switches (Coils)
   const steamLineOk = Pa_to_bar(params.external.steam_line_pressure) >= PS_STEAM_THRESHOLD_BAR;

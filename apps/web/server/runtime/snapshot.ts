@@ -44,7 +44,9 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
     },
     temperatures: {
       chamber_C: K_to_C(o.state.chamber.T),
-      testemunho_C: K_to_C(o.state.load.T_fabric),
+      testemunho_C: K_to_C(
+        (o.state.load.nodes.find((n) => n.isWitness) ?? o.state.load.nodes[0]!).T,
+      ),
       jacket_C: K_to_C(o.state.jacket.T),
       generator_C: o.state.generator ? K_to_C(o.state.generator.T) : 0,
     },
@@ -59,18 +61,44 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
 
 export type SnapshotSubscriber = (snap: Snapshot) => void;
 
+const HISTORY_CAP = 5000; // whole cycle at 1 Hz (~83 min)
+
 export class SnapshotPublisher {
   private subs = new Set<SnapshotSubscriber>();
   private _latest: Snapshot | null = null;
+  private _history: Snapshot[] = [];
+  private lastSec = -1;
+  private prevRunning = false;
 
   publish(snap: Snapshot): void {
     this._latest = snap;
+    this.record(snap);
     for (const cb of this.subs) {
       try {
         cb(snap);
       } catch (err) {
         console.error('snapshot subscriber threw:', err);
       }
+    }
+  }
+
+  /**
+   * Server-side cycle history so a client that opens (or re-opens) /live gets the
+   * whole cycle, not just from the moment it connected. One point per elapsed second
+   * while running; cleared when a new cycle starts (rising edge of cycle_running).
+   */
+  private record(snap: Snapshot): void {
+    if (snap.cycle_running && !this.prevRunning) {
+      this._history = [];
+      this.lastSec = -1;
+    }
+    this.prevRunning = snap.cycle_running;
+    if (!snap.cycle_running) return;
+    const sec = Math.floor(snap.cycle_elapsed_s);
+    if (sec !== this.lastSec) {
+      this.lastSec = sec;
+      this._history.push(snap);
+      if (this._history.length > HISTORY_CAP) this._history.shift();
     }
   }
 
@@ -83,5 +111,9 @@ export class SnapshotPublisher {
 
   get latest(): Snapshot | null {
     return this._latest;
+  }
+
+  get history(): readonly Snapshot[] {
+    return this._history;
   }
 }

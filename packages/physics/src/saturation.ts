@@ -1,4 +1,4 @@
-import { K_to_C } from './constants.js';
+import { K_to_C, C_to_K } from './constants.js';
 
 // Antoine equation for water. Valid 1°C..100°C strictly, extrapolated for autoclave range.
 // Constants from Bridgeman & Aldrich, error <2% in 20°C..180°C.
@@ -19,4 +19,14 @@ export function p_sat_water(T_K: number): number {
 export function h_vap_water(T_K: number): number {
   const t = K_to_C(T_K);
   return (2533.9 - 2.769 * t) * 1e3; // J/kg
+}
+
+// Inverse of p_sat_water: saturation (boiling) temperature at a given pressure.
+// Analytic inversion of the Antoine equation. Below ~1 Pa the log blows up, so the
+// result is floored at 273.15 K (near-vacuum boiling point is effectively 0°C for our range).
+export function T_sat_water(P_Pa: number): number {
+  if (P_Pa <= 1) return C_to_K(0);
+  const p_mmHg = P_Pa / MMHG_TO_PA;
+  const t = B / (A - Math.log10(p_mmHg)) - C; // °C
+  return C_to_K(t);
 }

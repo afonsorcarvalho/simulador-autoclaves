@@ -10,7 +10,7 @@ equipment:
   generator_water_l: 10
   heater_kw: 36
   # Pressure hierarchy for 134 °C sterilization (real autoclave operating regime):
-  #   P_chamber  = 3.04 bar abs (134 °C sat) — sterilization setpoint
+  #   P_chamber  = 3.25 bar abs relief SAFETY CAP (op. point set by steam-valve control + losses)
   #   P_jacket   = 3.54 bar abs (138 °C)     — chamber + 0.5 bar, no temperature loss
   #   P_generator= 4.54 bar abs (~148 °C)    — chamber + 1.5 bar, drives flow into chamber
   # Each setpoint enforced via passive relief (vents excess to atmosphere).
@@ -21,7 +21,10 @@ equipment:
   #   during vacuum pulses + latent-heat surge cycles).
   jacket_setpoint_bar: 3.54
   jacket_deadband_bar: 0.2
-  chamber_relief_bar: 3.04
+  # SP-B: relief is a SAFETY CAP, sized so T_sat(3.25 bar) ≈ 135.9 °C stays under the EN 285 +3
+  # ceiling (137) — open steam bursts saturate the chamber toward the relief pressure. Chamber
+  # temperature is regulated by the steam-valve controller (bang-bang) against the loss paths.
+  chamber_relief_bar: 3.25
   # Wall thermal mass: 50 kg stainless for chamber, 15 kg for jacket.
   # These buffer T during vacuum pulses (25 kJ/K vs ~130 J/K gas-only).
   # Omit to use these defaults.

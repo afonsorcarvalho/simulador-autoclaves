@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { VirtualPLC } from '../../server/virtual-plc/plc.js';
+import { VirtualPLC, chamberValveBangBang } from '../../server/virtual-plc/plc.js';
 import type { CycleConfig } from '../../server/virtual-plc/cycle-config.js';
 import { RegisterAccess } from '../../server/bridge/register-access.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
+
+describe('chamber steam valve bang-bang', () => {
+  const SP = 134;
+  it('opens below SP+0.1', () => {
+    expect(chamberValveBangBang(133.9, SP, false)).toBe(true);
+    expect(chamberValveBangBang(134.05, SP, false)).toBe(true);
+  });
+  it('closes above SP+0.5', () => {
+    expect(chamberValveBangBang(134.6, SP, true)).toBe(false);
+  });
+  it('holds previous state in the hysteresis band [SP+0.1, SP+0.5]', () => {
+    expect(chamberValveBangBang(134.3, SP, true)).toBe(true); // was open → stay open
+    expect(chamberValveBangBang(134.3, SP, false)).toBe(false); // was closed → stay closed
+  });
+  it('uses custom band offsets when provided', () => {
+    // band_low=1.0, band_high=2.0 → open below SP+1.0, close above SP+2.0
+    expect(chamberValveBangBang(134.9, SP, false, 1.0, 2.0)).toBe(true);
+    expect(chamberValveBangBang(136.1, SP, true, 1.0, 2.0)).toBe(false);
+    expect(chamberValveBangBang(135.5, SP, true, 1.0, 2.0)).toBe(true); // in band, hold
+  });
+});
 
 function makeCycle(): CycleConfig {
   return {
@@ -38,7 +59,7 @@ async function setSensors(
   await access.setAnalog('P_CHAMBER_INT', s.P_chamber);
   await access.setAnalog('T_TESTEMUNHO', s.T_test);
   await access.setAnalog('P_CHAMBER_EXT', s.P_jacket);
-  await access.setAnalog('F0_X10', s.F0 * 10);
+  await access.setAnalog('F0_X10', s.F0); // register scale ×10 applied internally
 }
 
 describe('VirtualPLC', () => {

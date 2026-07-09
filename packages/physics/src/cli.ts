@@ -6,6 +6,7 @@ import { system_step, type SystemState, type SystemParams } from './integrator.j
 import { CsvTrace } from './csv-trace.js';
 import { chamber_pressure } from './chamber.js';
 import { generator_pressure } from './generator.js';
+import { buildLoadState, type LoadItemConfig } from './load.js';
 import {
   GAMMA_AIR,
   GAMMA_VAP,
@@ -16,6 +17,9 @@ import {
   K_to_C,
   Pa_to_bar,
   bar_to_Pa,
+  H0_CONV_DEFAULT,
+  K_COND_DEFAULT,
+  K_EV_DEFAULT,
 } from './constants.js';
 
 interface Scenario {
@@ -48,9 +52,22 @@ interface Scenario {
     /** Pre-heat jacket + generator to operating temperature at t=0.
      *  Skips the cold-start ramp; useful for isolating sterilization dynamics. */
     preheated?: boolean;
-    load: { metal_kg: number; fabric_kg: number };
+    load: LoadItemConfig[] | { metal_kg: number; fabric_kg: number };
   };
   steps: Array<{ t: number; valves: string[]; actuators: string[] }>;
+}
+
+/** Retro-compat: mapeia o legado {metal_kg, fabric_kg} para lista de itens
+ *  (aço + têxtil testemunho); listas passam inalteradas; undefined→undefined. */
+export function resolveLoadItems(
+  load: LoadItemConfig[] | { metal_kg: number; fabric_kg: number } | undefined,
+): LoadItemConfig[] | undefined {
+  if (!load) return undefined;
+  if (Array.isArray(load)) return load;
+  return [
+    { name: 'metal', material: 'STAINLESS_316', mass_kg: load.metal_kg },
+    { name: 'fabric', material: 'COTTON_TEXTILE', mass_kg: load.fabric_kg, witness: true },
+  ];
 }
 
 function makeParams(eq: Scenario['equipment']): SystemParams {
@@ -67,6 +84,11 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       ...(eq.chamber_relief_bar !== undefined
         ? { relief_pressure_Pa: bar_to_Pa(eq.chamber_relief_bar) }
         : {}),
+      // ponytail: SP-B loss paths (vessel-calibration knobs) — ambient loss + passive condensate
+      // trap, sized so a steam-starved chamber falls below setpoint (controllable). Relief is a
+      // safety cap; the steam-valve controller regulates temperature against these losses.
+      h_ambient_W_per_K: 10,
+      drain_kg_per_s: 2e-5,
     },
     jacket: {
       V: eq.jacket_volume_l / 1000,
@@ -81,18 +103,7 @@ function makeParams(eq: Scenario['equipment']): SystemParams {
       heater_power_W: eq.heater_kw * 1000,
       relief_pressure_Pa: (eq.generator_relief_bar ?? 4) * 1e5,
     },
-    load: {
-      m_metal: eq.load.metal_kg,
-      cp_metal: 500,
-      m_fabric: eq.load.fabric_kg,
-      cp_fabric: 1500,
-      // 200 W/K: realistic steam condensation coupling for an autoclave load in open-loop.
-      // (500 W/K is the flooding regime used in closed-loop test scenarios.)
-      h_gas_metal: 200,
-      // 100 W/K metal→fabric coupling: fabric wrapped around metal in a real pack.
-      // (30 W/K is a loose-contact scenario used in tests to exaggerate thermal lag.)
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: H0_CONV_DEFAULT, k_cond: K_COND_DEFAULT, k_ev: K_EV_DEFAULT },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -213,7 +224,7 @@ function makeInitialState(p: SystemParams, eq: Scenario['equipment']): SystemSta
     chamber: chamberInit,
     jacket: jacketInit,
     generator: generatorInit,
-    load: { T_metal: T_ambient, T_fabric: T_ambient },
+    load: buildLoadState(resolveLoadItems(eq.load), T_ambient),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -273,7 +284,7 @@ export function run(scenarioPath: string, outCsv: string): void {
         P_jacket_bar: Pa_to_bar(pj.p_total),
         P_gen_bar: Pa_to_bar(pg),
         T_chamber_C: K_to_C(state.chamber.T),
-        T_test_C: K_to_C(state.load.T_fabric),
+        T_test_C: K_to_C((state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T),
         T_jacket_C: K_to_C(state.jacket.T),
         T_gen_C: state.generator ? K_to_C(state.generator.T) : 0,
         F0_min: state.f0_minutes,
@@ -288,7 +299,11 @@ export function run(scenarioPath: string, outCsv: string): void {
   writeFileSync(outCsv, trace.serialize(), 'utf8');
   console.log(`[scenario] ${scn.name}: ${N} steps simulated`);
   console.log(`[scenario] final F0 = ${state.f0_minutes.toFixed(2)} min`);
-  console.log(`[scenario] final T_test = ${K_to_C(state.load.T_fabric).toFixed(1)}°C`);
+  console.log(
+    `[scenario] final T_test = ${K_to_C(
+      (state.load.nodes.find((n) => n.isWitness) ?? state.load.nodes[0])!.T,
+    ).toFixed(1)}°C`,
+  );
   console.log(`[scenario] trace written to ${outCsv}`);
 }
 

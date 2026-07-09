@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../src/integrator.js';
+import { buildLoadState } from '../src/load.js';
 import { chamber_pressure } from '../src/chamber.js';
 import {
   GAMMA_AIR,
@@ -17,14 +18,7 @@ function basicParams(): SystemParams {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 24000 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 500,
-      h_metal_fabric: 30,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -54,7 +48,7 @@ function basicState(): SystemState {
     chamber: { m_air: m_air_chamber, m_vap: 0, m_liq: 0, T },
     jacket: { m_air: m_air_jacket, m_vap: 0, m_liq: 0, T },
     generator: { m_water_liq: 30, m_water_vap: 0, T: C_to_K(22) },
-    load: { T_metal: T, T_fabric: T },
+    load: buildLoadState(undefined, T),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -109,15 +103,18 @@ describe('system_step', () => {
     expect(cur.chamber.m_vap).toBeGreaterThan(0);
   });
 
-  it('F0 accumulates when testemunho (T_fabric) ≥ 100°C', () => {
+  it('F0 accumulates when testemunho (witness) ≥ 100°C', () => {
     const s = basicState();
     const p = basicParams();
-    s.load = { T_metal: C_to_K(134), T_fabric: C_to_K(134) };
+    s.load = buildLoadState(undefined, C_to_K(134));
     let cur = s;
     for (let i = 0; i < 6000; i++) {
       cur = system_step(cur, p, {}, { heater_gen: false, pump_vac: false }, 0.01);
     }
-    expect(cur.f0_minutes).toBeGreaterThan(15);
+    // N-node model: the witness (textile) now sheds heat by radiation to the cold
+    // (22 °C) jacket, so F0 accrues more slowly than the old stuck-hot 2-mass load.
+    // Still substantial over 60 s starting from 134 °C; keep a positive-accrual floor.
+    expect(cur.f0_minutes).toBeGreaterThan(5);
   });
 
   it('air admission valve fills evacuated chamber from atmosphere', () => {
@@ -141,10 +138,12 @@ describe('system_step — jacket-chamber wall coupling', () => {
       const s = basicState();
       s.jacket.T = C_to_K(140);
       s.chamber.T = C_to_K(40);
-      s.load = { T_metal: C_to_K(40), T_fabric: C_to_K(40) };
+      s.chamber.T_wall = C_to_K(40);
+      s.load = buildLoadState(undefined, C_to_K(40));
       const p = basicParams();
-      // Isolate the coupling signal: disable gas↔metal exchange so jacket→chamber effect is clear
-      p.load = { ...p.load, h_gas_metal: 0, h_metal_fabric: 0 };
+      // Jacket conduction now heats the chamber WALL, not the gas directly; the two-phase
+      // chamber always has a wall, so the scenario must include one for the heat to reach the gas.
+      p.chamber = { ...p.chamber, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
       p.jacket_chamber_h_W_per_K = h_jc;
       let cur = s;
       for (let i = 0; i < 600; i++) {
@@ -155,8 +154,10 @@ describe('system_step — jacket-chamber wall coupling', () => {
     };
     const T_with = makeScenario(200);
     const T_without = makeScenario(0);
-    // With jacket coupling enabled, chamber should be noticeably warmer
-    expect(T_with).toBeGreaterThan(T_without + 1);
+    // Jacket coupling still warms the chamber, but via the wall now: the heat charges the
+    // large wall thermal mass instead of spiking the gas, so the gas rise is small (was a
+    // +1 K/6 s margin under the old direct-gas-heating model, which this task removes).
+    expect(T_with).toBeGreaterThan(T_without);
   });
 
   it('back-compat: disabling coupling (h=0) produces cooler chamber than h=200', () => {
@@ -166,9 +167,11 @@ describe('system_step — jacket-chamber wall coupling', () => {
       const s = basicState();
       s.jacket.T = C_to_K(140);
       s.chamber.T = C_to_K(40);
-      s.load = { T_metal: C_to_K(40), T_fabric: C_to_K(40) };
+      s.chamber.T_wall = C_to_K(40);
+      s.load = buildLoadState(undefined, C_to_K(40));
       const p = basicParams();
-      p.load = { ...p.load, h_gas_metal: 0, h_metal_fabric: 0 };
+      // Jacket conduction now heats the chamber WALL, not the gas directly; include a wall.
+      p.chamber = { ...p.chamber, wall_mass_kg: 50, wall_cp_J_per_kg_K: 500, wall_h_W_per_K: 200 };
       p.jacket_chamber_h_W_per_K = h_jc;
       let cur = s;
       for (let i = 0; i < 600; i++) {
@@ -187,7 +190,7 @@ describe('system_step — jacket-chamber wall coupling', () => {
     p.jacket_chamber_h_W_per_K = 500;
     s.jacket.T = C_to_K(140);
     s.chamber.T = C_to_K(20);
-    s.load = { T_metal: C_to_K(20), T_fabric: C_to_K(20) };
+    s.load = buildLoadState(undefined, C_to_K(20));
     let cur = s;
     for (let i = 0; i < 30000; i++) {
       // 5 min simulated

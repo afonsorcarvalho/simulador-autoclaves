@@ -7,7 +7,16 @@ import { runScenario } from '../../server/scenario-runner/runner.js';
 import { CycleConfigSchema } from '../../server/virtual-plc/cycle-config.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemParams, SystemState } from '@sim/physics';
-import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+import {
+  C_to_K,
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  bar_to_Pa,
+  buildLoadState,
+} from '@sim/physics';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,7 +29,13 @@ function makeParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      relief_pressure_Pa: bar_to_Pa(3.04),
+      // SP-B: relief is a safety cap sized so its SATURATION temperature (T_sat(3.25 bar) ≈ 135.9 °C)
+      // stays under the EN 285 +3 ceiling (137) — an open steam burst saturates the chamber toward
+      // the relief pressure, so the relief sets the overshoot ceiling. Chamber temperature is
+      // regulated by the bang-bang against the loss paths. Matches singleton.ts.
+      relief_pressure_Pa: bar_to_Pa(3.25),
+      h_ambient_W_per_K: 10,
+      drain_kg_per_s: 2e-5,
     },
     jacket: {
       V: 0.025,
@@ -30,14 +45,7 @@ function makeParams(): SystemParams {
       wall_h_W_per_K: 100,
     },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: bar_to_Pa(4.54) },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -88,7 +96,7 @@ function preheatedInitial(p: SystemParams): SystemState {
     },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: T_amb, T_fabric: T_amb },
+    load: buildLoadState(undefined, T_amb),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -111,6 +119,7 @@ describe('Integration: 134°C pre-vacuum cycle via virtual PLC', () => {
       bridge: new VirtualEsp32Bridge(),
       tickDt_s: 0.05,
       max_duration_s: 3600,
+      trace: { sample_period_s: 5 },
     });
 
     console.log('Phase history:', JSON.stringify(result.phase_history, null, 2));
@@ -127,5 +136,24 @@ describe('Integration: 134°C pre-vacuum cycle via virtual PLC', () => {
     expect(result.final_phase).toBe('COMPLETE');
     expect(result.f0_min).toBeGreaterThanOrEqual(100);
     expect(result.phase_history.map((p) => p.phase)).toContain('HOLD');
+
+    // EN 285: every chamber-temperature sample during HOLD sits within [SP, SP+3].
+    const SP = cycle.sterilization_T_C; // 134
+    const holdRows = result.trace.filter((r) => r.phase === 'HOLD');
+    expect(holdRows.length).toBeGreaterThan(0);
+    const maxHold = Math.max(...holdRows.map((r) => r.T_chamber_C));
+    const minHold = Math.min(...holdRows.map((r) => r.T_chamber_C));
+    console.log('HOLD chamber T range:', minHold.toFixed(2), '..', maxHold.toFixed(2));
+    expect(maxHold).toBeLessThanOrEqual(SP + 3); // EN 285 ceiling — no superheat runaway
+    expect(minHold).toBeGreaterThanOrEqual(SP - 1); // stays near/at setpoint (small undershoot ok)
+
+    // Drying dip: the load wets during come-up (condensation) and flashes off in DRY, so the
+    // witness cools and the load water trends toward ~0 by the end.
+    const dryRows = result.trace.filter((r) => r.phase === 'DRY');
+    if (dryRows.length > 1) {
+      const witnessStart = dryRows[0]!.T_test_C;
+      const witnessMin = Math.min(...dryRows.map((r) => r.T_test_C));
+      expect(witnessMin).toBeLessThan(witnessStart); // testemunho dips during drying
+    }
   }, 180000);
 });

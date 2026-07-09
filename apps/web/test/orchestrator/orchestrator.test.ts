@@ -3,21 +3,23 @@ import { Orchestrator } from '../../server/orchestrator/orchestrator.js';
 import { RegisterAccess } from '../../server/bridge/register-access.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemState, SystemParams } from '@sim/physics';
-import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+import {
+  C_to_K,
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  bar_to_Pa,
+  buildLoadState,
+} from '@sim/physics';
 
 function basicParams(): SystemParams {
   return {
     chamber: { V: 0.15, allowLiquid: true },
     jacket: { V: 0.025, allowLiquid: false },
     generator: { V_total: 0.05, heater_power_W: 36000, relief_pressure_Pa: 454000 },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },
       V_STEAM_IN_INT: {
@@ -40,7 +42,7 @@ function basicState(p: SystemParams): SystemState {
     chamber: { m_air: (P_ATM * p.chamber.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T, T_wall: T },
     jacket: { m_air: (P_ATM * p.jacket.V) / (R_AIR * T), m_vap: 0, m_liq: 0, T, T_wall: T },
     generator: { m_water_liq: 10, m_water_vap: 0, T },
-    load: { T_metal: T, T_fabric: T },
+    load: buildLoadState(undefined, T),
     f0_minutes: 0,
     time_s: 0,
   };

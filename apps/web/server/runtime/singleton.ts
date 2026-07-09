@@ -4,9 +4,19 @@ import { VirtualPLC } from '../virtual-plc/plc.js';
 import type { CycleConfig } from '../virtual-plc/cycle-config.js';
 import type { ModbusBridge } from '../bridge/bridge.js';
 import { SnapshotPublisher, buildSnapshot } from './snapshot.js';
-import type { SystemParams, SystemState } from '@sim/physics';
-import { C_to_K, P_ATM, R_AIR, GAMMA_AIR, GAMMA_VAP, R_VAP, bar_to_Pa } from '@sim/physics';
+import type { SystemParams, SystemState, LoadItemConfig } from '@sim/physics';
+import {
+  C_to_K,
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  R_VAP,
+  bar_to_Pa,
+  buildLoadState,
+} from '@sim/physics';
 import { readCommands } from '../orchestrator/command-reader.js';
+import { applyFactory, applyOverrides } from '../knobs/store.js';
 
 const TICK_DT_S = 0.05;
 
@@ -18,7 +28,16 @@ function defaultParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      relief_pressure_Pa: bar_to_Pa(3.04),
+      // SP-B: relief is a SAFETY CAP, not the operating point. Sized so its saturation temperature
+      // T_sat(3.25 bar) ≈ 135.9 °C stays under the EN 285 +3 ceiling (137) — an open steam burst
+      // saturates the chamber toward the relief pressure, so the relief sets the overshoot ceiling.
+      // The steam-valve controller (bang-bang) regulates temperature against the loss paths below.
+      relief_pressure_Pa: bar_to_Pa(3.25),
+      // ponytail: vessel-calibration knobs — ambient loss (door/penetrations) + passive condensate
+      // trap. Sized so a steam-starved chamber falls below setpoint in ~50 s (controllable). Tune on
+      // the real vessel. See docs .../2026-07-06-chamber-temperature-control-design.md.
+      h_ambient_W_per_K: 10,
+      drain_kg_per_s: 2e-5,
     },
     jacket: {
       V: 0.025,
@@ -32,14 +51,7 @@ function defaultParams(): SystemParams {
       heater_power_W: 36000,
       relief_pressure_Pa: bar_to_Pa(4.54),
     },
-    load: {
-      m_metal: 20,
-      cp_metal: 500,
-      m_fabric: 5,
-      cp_fabric: 1500,
-      h_gas_metal: 200,
-      h_metal_fabric: 100,
-    },
+    load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
       V_STEAM_IN_INT: {
         from: 'generator',
@@ -94,7 +106,7 @@ function preheatedInitial(p: SystemParams): SystemState {
     },
     jacket: { m_air: 0, m_vap: 0.047, m_liq: 0, T: T_hot, T_wall: T_hot },
     generator: { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(148) },
-    load: { T_metal: T_amb, T_fabric: T_amb },
+    load: buildLoadState(undefined, C_to_K(22)),
     f0_minutes: 0,
     time_s: 0,
   };
@@ -108,6 +120,10 @@ export interface Runtime {
   cycle_running: boolean;
   cycle_started_at_s: number;
   params: SystemParams;
+  timeScale: number;
+  controller: { band_low: number; band_high: number };
+  cycleOverride: Partial<CycleConfig>;
+  effectiveCycle: CycleConfig | null;
   startCycle(cycle: CycleConfig): void;
   stopCycle(): void;
   tick(): Promise<void>;
@@ -121,6 +137,11 @@ class RuntimeImpl implements Runtime {
   cycle_running = false;
   cycle_started_at_s = 0;
   params: SystemParams;
+  // Default 2: with bootstrap's 100ms wall tick and TICK_DT_S=0.05, 2 ticks/firing = 1× real time. Keep these three in sync.
+  timeScale = 2;
+  controller = { band_low: 0.1, band_high: 0.5 };
+  cycleOverride: Partial<CycleConfig> = {};
+  effectiveCycle: CycleConfig | null = null;
 
   constructor() {
     this.bridge = new VirtualEsp32Bridge();
@@ -133,13 +154,28 @@ class RuntimeImpl implements Runtime {
       tickDt_s: TICK_DT_S,
     });
     void this.bridge.connect();
+    // Apply the versioned factory baseline, then persisted overrides on top. Safe: no
+    // MVP knob feeds the initial state (preheatedInitial reads only chamber.V, not a knob).
+    try {
+      applyFactory(this);
+      applyOverrides(this);
+    } catch (err) {
+      console.error('failed to apply knob overrides:', err);
+    }
   }
 
   startCycle(cycle: CycleConfig): void {
-    this.plc = new VirtualPLC(cycle, this.bridge);
+    const merged: CycleConfig = { ...cycle, ...this.cycleOverride };
+    this.effectiveCycle = merged;
+    this.plc = new VirtualPLC(merged, this.bridge);
     this.plc.start();
     this.cycle_running = true;
     this.cycle_started_at_s = this.orchestrator.getState().time_s;
+    // zod's optional() widens props to `| undefined`; exactOptionalPropertyTypes
+    // rejects that against LoadItemConfig. Runtime-identical — cast.
+    this.orchestrator.setLoadState(
+      buildLoadState(merged.load as LoadItemConfig[] | undefined, C_to_K(22)),
+    );
   }
 
   stopCycle(): void {
@@ -151,21 +187,25 @@ class RuntimeImpl implements Runtime {
   async tick(): Promise<void> {
     const t = this.orchestrator.getState().time_s;
     if (this.plc) {
-      await this.plc.tick(t);
+      await this.plc.tick(t, this.controller);
     }
     await this.orchestrator.tick();
+    const phase = this.plc ? this.plc.getPhase() : 'IDLE';
     const { valves } = await readCommands(this.bridge);
     const snap = buildSnapshot({
       state: this.orchestrator.getState(),
       params: this.params,
       cycle_running: this.cycle_running,
-      cycle_phase: this.plc ? this.plc.getPhase() : 'IDLE',
+      cycle_phase: phase,
       cycle_elapsed_s: this.cycle_running
         ? this.orchestrator.getState().time_s - this.cycle_started_at_s
         : 0,
       valves: valves as Record<string, boolean>,
     });
     this.publisher.publish(snap);
+    // Freeze the cycle once it completes: otherwise cycle_running stays true and the
+    // integrator keeps running the COMPLETE plateau forever (elapsed + F0 runaway).
+    if (this.cycle_running && phase === 'COMPLETE') this.stopCycle();
   }
 }
 

@@ -22,6 +22,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Link href="/virtual-plc" className="hover:text-blue-400">
             Virtual PLC
           </Link>
+          <Link href="/knobs" className="hover:text-blue-400">
+            Knobs
+          </Link>
         </nav>
         <main className="p-4">{children}</main>
       </body>

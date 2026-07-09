@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from '../ui/Card';
+import { formatHMS } from '../../lib/format';
 import type { Snapshot } from '../../server/runtime/snapshot';
 import {
   LineChart,
@@ -15,7 +16,7 @@ import {
 
 export function PressureChart({ history }: { history: Snapshot[] }) {
   const data = history.map((s) => ({
-    t: s.t_s.toFixed(1),
+    t: s.cycle_elapsed_s,
     chamber: s.pressures.chamber_bar,
     jacket: s.pressures.jacket_bar,
     generator: s.pressures.generator_bar,
@@ -25,9 +26,19 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <XAxis dataKey="t" stroke="#94a3b8" tick={{ fontSize: 10 }} />
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={[0, 'dataMax']}
+              tickFormatter={formatHMS}
+              stroke="#94a3b8"
+              tick={{ fontSize: 10 }}
+            />
             <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} domain={[0, 6]} />
-            <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #475569' }} />
+            <Tooltip
+              contentStyle={{ background: '#1e293b', border: '1px solid #475569' }}
+              labelFormatter={(v) => formatHMS(Number(v))}
+            />
             <Legend />
             <ReferenceLine y={3.04} stroke="#dc2626" strokeDasharray="3 3" />
             <Line

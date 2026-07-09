@@ -4,8 +4,6 @@ export interface SchedulerOpts {
   runtime: Runtime;
   /** Wall-clock period between scheduler firings (ms). */
   tick_wall_ms: number;
-  /** Number of physics ticks performed per wall firing. >1 = fast-forward. */
-  ticks_per_wall: number;
 }
 
 export function startScheduler(opts: SchedulerOpts): () => void {
@@ -16,7 +14,9 @@ export function startScheduler(opts: SchedulerOpts): () => void {
     if (!running || busy) return;
     busy = true;
     try {
-      for (let i = 0; i < opts.ticks_per_wall; i++) {
+      // Read timeScale each firing so mid-run changes (a knob) take effect immediately.
+      const n = Math.max(1, Math.round(opts.runtime.timeScale) || 1);
+      for (let i = 0; i < n; i++) {
         await opts.runtime.tick();
       }
     } catch (err) {
