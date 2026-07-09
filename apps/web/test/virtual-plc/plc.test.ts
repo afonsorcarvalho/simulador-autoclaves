@@ -59,7 +59,7 @@ async function setSensors(
   await access.setAnalog('P_CHAMBER_INT', s.P_chamber);
   await access.setAnalog('T_TESTEMUNHO', s.T_test);
   await access.setAnalog('P_CHAMBER_EXT', s.P_jacket);
-  await access.setAnalog('F0_X10', s.F0 * 10);
+  await access.setAnalog('F0_X10', s.F0); // register scale ×10 applied internally
 }
 
 describe('VirtualPLC', () => {

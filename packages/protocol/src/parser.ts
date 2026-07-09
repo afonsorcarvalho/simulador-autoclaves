@@ -1,6 +1,13 @@
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { RegisterFileSchema, type Register, type RegisterFile, type SpaceName } from './schema.js';
+import {
+  RegisterFileSchema,
+  TYPE_BOUNDS,
+  resolveType,
+  type Register,
+  type RegisterFile,
+  type SpaceName,
+} from './schema.js';
 
 export interface ParsedRegisters {
   version: 1;
@@ -77,6 +84,20 @@ export function parseRegisters(yamlText: string): ParsedRegisters {
       throw new Error(
         `holding register "${reg.id}" must declare either "scale" (analog) or "type" (raw uint16/int16)`,
       );
+    }
+
+    // Overflow guard: the scaled range must fit the register's storage type,
+    // otherwise the raw value clips silently at the transport layer.
+    if (reg.range !== undefined && reg.scale !== undefined) {
+      const bounds = TYPE_BOUNDS[resolveType(reg)];
+      for (const edge of reg.range) {
+        const raw = Math.round(edge * reg.scale);
+        if (raw < bounds.min || raw > bounds.max) {
+          throw new Error(
+            `Register ${reg.id}: range endpoint ${edge} × scale ${reg.scale} = ${raw} exceeds ${resolveType(reg)} bounds [${bounds.min}..${bounds.max}]`,
+          );
+        }
+      }
     }
   }
 

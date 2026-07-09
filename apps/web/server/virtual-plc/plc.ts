@@ -98,7 +98,7 @@ export class VirtualPLC {
       T_chamber_C: await this.access.getAnalog('T_CHAMBER_INT'),
       T_test_C: await this.access.getAnalog('T_TESTEMUNHO'),
       P_jacket_bar: await this.access.getAnalog('P_CHAMBER_EXT'),
-      F0_min: (await this.access.getAnalog('F0_X10')) / 10,
+      F0_min: await this.access.getAnalog('F0_X10'),
     };
   }
 
