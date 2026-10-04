@@ -282,3 +282,13 @@ describe('DeltaPlcBridge', () => {
     expect(plc.d[30]).toBe(13);
   });
 });
+
+describe('parsePhaseReg', () => {
+  it('aceita número ou D<n>; vazio desliga; lixo dá erro', async () => {
+    const { parsePhaseReg } = await import('../../server/bridge/delta-plc.js');
+    expect(parsePhaseReg('900')).toBe(900);
+    expect(parsePhaseReg('D900')).toBe(900);
+    expect(parsePhaseReg(undefined)).toBeNull();
+    expect(() => parsePhaseReg('M900')).toThrow();
+  });
+});

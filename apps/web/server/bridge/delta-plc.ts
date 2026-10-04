@@ -107,6 +107,13 @@ function parsePowerCutBit(raw: string | undefined): number | null {
   if (!m) throw new Error(`SIM_POWER_CUT_BIT inválido (use M<n>): ${raw}`);
   return Number(m[1]);
 }
+/** `SIM_PLC_PHASE_REG=<n>` ou `D<n>` → registrador D com a fase do CLP. null = detecção desligada. */
+export function parsePhaseReg(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const m = /^D?(\d+)$/i.exec(raw.trim());
+  if (!m) throw new Error(`SIM_PLC_PHASE_REG inválido (use <n> ou D<n>): ${raw}`);
+  return Number(m[1]);
+}
 // ponytail: SIM_PT100_TAU_S = constante de tempo do PT100 (s), knob de calibração contra o sensor real.
 const PT100_TAU_S = Number(process.env.SIM_PT100_TAU_S ?? 5);
 const clampRaw = (v: number, lo: number, hi: number): number =>
@@ -216,7 +223,7 @@ export class DeltaPlcBridge extends VirtualEsp32Bridge {
     readonly powerCutBit: number | null = parsePowerCutBit(process.env.SIM_POWER_CUT_BIT),
     /** Registrador D<n> com a fase atual do CLP (0 = parado). Vem de SIM_PLC_PHASE_REG; sem ele,
      *  a detecção de início de ciclo fica desligada. Nunca hardcoded (endereço é do projeto do CLP). */
-    readonly phaseReg: number | null = parsePowerCutBit(process.env.SIM_PLC_PHASE_REG),
+    readonly phaseReg: number | null = parsePhaseReg(process.env.SIM_PLC_PHASE_REG),
   ) {
     super();
   }
