@@ -5,16 +5,20 @@ export const R_VAP = 461.5; // J/(kg·K) — water vapor
 export const CP_AIR = 1005; // J/(kg·K)
 export const CV_AIR = 718; // J/(kg·K)
 export const CP_VAP = 1996; // J/(kg·K) — superheated steam ~100-200°C average
-export const CV_VAP = 1410; // J/(kg·K)
+/** c_v do vapor pela relação de Mayer (c_p − c_v = R) — gás ideal consistente: o trabalho de
+ *  escoamento (CP−CV)·T vale exatamente R_VAP·T e γ = CP/CV. */
+export const CV_VAP = CP_VAP - R_VAP; // 1534.5 J/(kg·K)
 export const CP_LIQ = 4186; // J/(kg·K) — liquid water
 /** Latent-heat offset for vapor internal energy (J/kg), on the common reference
- *  (liquid water, u=0 at 273.15 K). Chosen so the effective condensation latent
- *  L_eff(T) = U_FG0 − (CP_LIQ − CV_VAP)·T matches h_vap_water(T) near 121 °C (and,
- *  because CP_LIQ−CV_VAP ≈ the slope of h_vap_water, across the whole range).
+ *  (liquid water, u = CP_LIQ·T, zero at 0 K). Chosen so the effective condensation latent
+ *  L_eff(T) = u_vap − u_liq = U_FG0 − (CP_LIQ − CV_VAP)·T matches the INTERNAL energy of
+ *  vaporization u_fg(T) = h_fg − P·v_fg (IAPWS) at 121 °C. L_eff is a storage quantity, so the
+ *  target is u_fg, not h_fg: the transported h_vap − h_liq = L_eff + R_VAP·T then reproduces h_fg.
+ *  (Calibrating to h_fg overstated the latent by R_VAP·T ≈ 180 kJ/kg, ~9 %.)
  *  u_vap = CV_VAP·T + U_FG0 (storage); h_vap = CP_VAP·T + U_FG0 (transport). */
-export const U_FG0 = 3.29301e6; // J/kg
+export const U_FG0 = 3.0676e6; // J/kg
 export const GAMMA_AIR = 1.4;
-export const GAMMA_VAP = 1.33;
+export const GAMMA_VAP = CP_VAP / CV_VAP; // ≈ 1.30
 
 export const P_ATM = 101325; // Pa
 export const KELVIN_OFFSET = 273.15;
@@ -28,7 +32,7 @@ export function criticalRatio(gamma: number): number {
 }
 
 export const CRITICAL_RATIO_AIR = criticalRatio(GAMMA_AIR); // ≈ 0.528
-export const CRITICAL_RATIO_VAP = criticalRatio(GAMMA_VAP); // ≈ 0.542
+export const CRITICAL_RATIO_VAP = criticalRatio(GAMMA_VAP); // ≈ 0.546
 
 // Conversion helpers
 export const C_to_K = (c: number): number => c + KELVIN_OFFSET;
@@ -43,6 +47,15 @@ export const CP_WATER = 4186;
 /** Densidade de referência do gás para escalar a convecção (kg/m³).
  *  Vapor saturado ~1 bar/100 °C ≈ 0.6 kg/m³. Convecção efetiva = h0·(ρ_gas/este valor). */
 export const RHO_GAS_ATM_REF = 0.6;
+/** Coef. de condensação em filme do vapor na carga, W/(m²·K), vapor puro.
+ *  ponytail: knob de calibração; faixa física 3000–8000 (filme de vapor em superfícies
+ *  metálicas/têxteis, sem ar). Convecção seca (h0_conv ~30) subestimava ~100× → câmara
+ *  ficava superaquecida e o testemunho levava ~10 min p/ chegar a T_sat. */
+export const H_COND_DEFAULT = 5000;
+/** Dessuperaquecimento gás↔carga molhada que está condensando (W/(m²·K)). A sucção do filme
+ *  arrasta o vapor superaquecido contra a superfície fria → bem maior que a convecção seca.
+ *  Calibrado: segura a câmara em ≤ T_sat(P)+5 °C no aquecimento (antes ~15 °C acima). */
+export const H_DESUP_DEFAULT = 130;
 /** Convecção base gás↔carga à densidade de referência (W/(m²·K)). Knob calibrável. */
 export const H0_CONV_DEFAULT = 30;
 /** Coef. de condensação (kg/(s·m²·Pa)). Knob calibrável. */

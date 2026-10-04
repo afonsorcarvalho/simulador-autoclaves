@@ -71,7 +71,13 @@ function defaultParams(): SystemParams {
       wall_mass_kg: 50,
       wall_cp_J_per_kg_K: 500,
       wall_h_W_per_K: 200,
-      relief_pressure_Pa: bar_to_Pa(3.04),
+      wall_h_air_W_per_K: 15,
+      wall_h_steam_dry_W_per_K: 100,
+      // Teto de segurança 3,25 bar (T_sat 135,9 °C, abaixo de SP+3 da EN 285), igual ao runtime
+      // (singleton.ts) e ao cenário da física. Com 3,04 bar = T_sat(SP) o testemunho molhado ficava
+      // preso em T_sat − ε e o PRESSURIZE (critério testemunho ≥ SP) só terminava quando ele secava
+      // e superaquecia — 10–20 min de come-up artificiais.
+      relief_pressure_Pa: bar_to_Pa(3.25),
     },
     jacket: {
       V: 0.025,
@@ -94,8 +100,8 @@ function defaultParams(): SystemParams {
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
         thermostat: {
           target: 'jacket',
-          close_at_Pa: bar_to_Pa(3.54),
-          reopen_at_Pa: bar_to_Pa(3.34),
+          close_at_Pa: bar_to_Pa(3.44),
+          reopen_at_Pa: bar_to_Pa(3.24),
         },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },

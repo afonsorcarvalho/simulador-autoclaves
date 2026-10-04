@@ -49,6 +49,20 @@ function basicState(p: SystemParams): SystemState {
 }
 
 describe('Orchestrator', () => {
+  it('setLoadState (carga nova) zera o F0 acumulado', async () => {
+    const bridge = new VirtualEsp32Bridge();
+    await bridge.connect();
+    const params = basicParams();
+    const orch = new Orchestrator({
+      bridge,
+      params,
+      initialState: { ...basicState(params), f0_minutes: 14.97 },
+      tickDt_s: 0.05,
+    });
+    orch.setLoadState(buildLoadState(undefined, C_to_K(22)));
+    expect(orch.getState().f0_minutes).toBe(0);
+  });
+
   it('advances physics one dt per tick', async () => {
     const bridge = new VirtualEsp32Bridge();
     await bridge.connect();

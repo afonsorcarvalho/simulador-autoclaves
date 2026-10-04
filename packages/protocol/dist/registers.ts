@@ -44,8 +44,8 @@ export const REGISTERS = {
   MODEL_TICK_LOW: { space: 'diagnostics', address: 0x4000, type: 'uint16' },
   MODEL_TICK_HIGH: { space: 'diagnostics', address: 0x4001, type: 'uint16' },
   WATCHDOG_MS: { space: 'diagnostics', address: 0x4002, type: 'uint16' },
-  F0_X10: { space: 'diagnostics', address: 0x4003, type: 'uint16' },
-  SIM_TIME_SCALE: { space: 'diagnostics', address: 0x4020, type: 'uint16' },
+  F0_X10: { space: 'diagnostics', address: 0x4003, type: 'uint16', scale: 10, unit: 'minute' },
+  SIM_TIME_SCALE: { space: 'diagnostics', address: 0x4020, type: 'uint16', scale: 100 },
   EQUIPMENT_ID: { space: 'diagnostics', address: 0x4030, type: 'uint16' },
 } as const;
 

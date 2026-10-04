@@ -6,9 +6,9 @@ import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar } from '@sim/ph
 /** Steam line "OK" threshold (bar abs). Above this, pressure switch reports true. */
 const PS_STEAM_THRESHOLD_BAR = 3.0;
 /** Generator water level min threshold (kg). */
-const LVL_GEN_MIN_KG = 1.0;
+export const LVL_GEN_MIN_KG = 1.0;
 /** Generator water level max threshold (kg). */
-const LVL_GEN_MAX_KG = 25.0;
+export const LVL_GEN_MAX_KG = 25.0;
 
 export async function publishSensors(
   bridge: ModbusBridge,
@@ -35,8 +35,8 @@ export async function publishSensors(
   await access.setAnalog('T_CHAMBER_EXT', K_to_C(state.jacket.T));
   await access.setAnalog('T_GENERATOR', state.generator ? K_to_C(state.generator.T) : 0);
 
-  // F0 × 10
-  await access.setAnalog('F0_X10', state.f0_minutes * 10);
+  // F0 (register scale ×10 applied by RegisterAccess)
+  await access.setAnalog('F0_X10', state.f0_minutes);
 
   // Pressure switches (Coils)
   const steamLineOk = Pa_to_bar(params.external.steam_line_pressure) >= PS_STEAM_THRESHOLD_BAR;

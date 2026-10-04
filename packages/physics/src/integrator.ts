@@ -12,11 +12,22 @@ import {
   generator_pressure,
   type GeneratorState,
   type GeneratorParams,
+  type GeneratorFeed,
 } from './generator.js';
 import { load_step, type LoadState, type LoadParams } from './load.js';
 import { p_sat_water } from './saturation.js';
-import { choked_flow, type ValveParams } from './valve.js';
-import { P_ATM, GAMMA_AIR, GAMMA_VAP, RHO_GAS_ATM_REF, CP_VAP, CV_VAP } from './constants.js';
+import { choked_flow, vacuum_pump_flow, type ValveParams, type VacuumPumpParams } from './valve.js';
+import {
+  P_ATM,
+  R_AIR,
+  GAMMA_AIR,
+  GAMMA_VAP,
+  RHO_GAS_ATM_REF,
+  CP_VAP,
+  CV_VAP,
+  CP_LIQ,
+  U_FG0,
+} from './constants.js';
 
 export type VCName = 'chamber' | 'jacket' | 'generator' | 'atmosphere' | 'steam_line' | 'vacuum';
 
@@ -55,7 +66,29 @@ export interface SystemParams {
   /** Wall conduction coupling between jacket and chamber (W/K).
    *  Default 0 (no coupling — back-compat). Typical 100-300 W/K for real autoclaves. */
   jacket_chamber_h_W_per_K?: number;
+  /** Bomba de vácuo com curva S(p). Se presente, a válvula câmara→'vacuum' (só existe uma, V_VAC)
+   *  fica limitada pela bomba (ṁ_i = ρ_i·S(p)) em vez do escoamento crítico até o nó fixo de
+   *  10 mbar. Válvulas jacket→vacuum (não usadas) continuam no modelo antigo. Com vapor_factor > 1
+   *  o vapor sai mais rápido que o ar, então a mistura deriva p/ ar mais cedo que com ρ·S puro —
+   *  aceitável como substituto do condensador do anel líquido. */
+  vacuum_pump?: VacuumPumpParams;
+  /** Bomba de reposição do gerador (ativa com V_GEN_WATER_IN). Default 3 L/min à T ambiente. */
+  generator_feed?: GeneratorFeed;
+  /** Abertura efetiva das portas (0..2: soma das posições 0..1 de cada porta). Default 0. */
+  door_open?: number;
+  /** Perda parede→ambiente por porta totalmente aberta (W/K). Default DOOR_H_OPEN_DEFAULT. */
+  door_h_open_W_per_K?: number;
+  /** Constante de tempo (s) da troca gás↔ar ambiente com UMA porta aberta. Default DOOR_TAU_GAS_DEFAULT. */
+  door_tau_gas_s?: number;
 }
+
+/** Câmara de ~500 L: superfície interna ~3,5 m² com h de convecção natural ~10 W/m²K ≈ 35 W/K;
+ *  arredondado p/ 40 W/K por porta. Parede de 150 kg inox (75 kJ/K) → τ ≈ 31 min com 1 porta. */
+export const DOOR_H_OPEN_DEFAULT = 40;
+/** Troca de ar pela porta aberta (~0,35 m², fluxo de empuxo ~25 L/s) renova 500 L em ~20 s. */
+export const DOOR_TAU_GAS_DEFAULT = 20;
+/** Bomba de alimentação do gerador: ~3 L/min (0,05 kg/s), típica de geradores de 20–50 kW. */
+export const GEN_FEED_DEFAULT_KG_S = 0.05;
 
 export interface SystemState {
   chamber: ChamberState;
@@ -66,6 +99,36 @@ export interface SystemState {
   time_s: number;
   /** Per-valve thermostat tripped state. true = closed by thermostat (overrides manual command). */
   valve_tripped?: Record<string, boolean>;
+  /** Saída do último passo (kg, todos ≥ 0): condensação/evaporação brutas na carga e no líquido
+   *  da câmara (parede), escoamento carga→câmara e líquido que saiu pelo dreno.
+   *  Σcond_load − Σevap_load − Σload_to_chamber = Δ(água na carga). */
+  cond_load_kg?: number;
+  evap_load_kg?: number;
+  cond_wall_kg?: number;
+  evap_wall_kg?: number;
+  load_to_chamber_kg?: number;
+  drain_kg?: number;
+  /** Massas por caminho no último passo (kg) + entalpia do vapor injetado (J). Opcional. */
+  flows?: StepFlows;
+}
+
+/** Massas (kg, ≥ 0) que passaram por cada caminho no passo. Saídas da câmara já descontam o
+ *  teto de 50% do chamber_step (rateadas por caminho). Exaustão inclui V_EXHAUST, o gás de
+ *  V_DRAIN_INT e o alívio de pressão (tudo vai p/ atmosfera). Dreno líquido = drain_kg.
+ *  steam_in_H_J = Σ m·h_vap(T_origem) no modelo (h = CP_VAP·T + U_FG0, mesma base do chamber). */
+export interface StepFlows {
+  steam_in_chamber_kg: number;
+  steam_in_jacket_kg: number;
+  steam_in_H_J: number;
+  exhaust_air_kg: number;
+  exhaust_vap_kg: number;
+  vacuum_air_kg: number;
+  vacuum_vap_kg: number;
+  air_in_kg: number;
+  door_air_in_kg: number;
+  door_air_out_kg: number;
+  door_vap_out_kg: number;
+  jacket_cond_kg: number;
 }
 
 export interface ValveCommands {
@@ -137,6 +200,13 @@ export function system_step(
     generator: emptyAccum(),
   };
   let generatorVaporOutflow = 0;
+  // Taxas brutas (kg/s) por caminho de saída da câmara; rateadas pelo saído real no fim.
+  const out = { exh_air: 0, exh_vap: 0, vac_air: 0, vac_vap: 0, door_air: 0, door_vap: 0 };
+  let steamInCh = 0,
+    steamInJk = 0,
+    steamH = 0,
+    airIn = 0,
+    doorAirIn = 0;
 
   // Update thermostat state per valve (bang-bang with hysteresis)
   const prevTripped = state.valve_tripped ?? {};
@@ -161,6 +231,19 @@ export function system_step(
 
     const up = vcPressure(topo.from, state, params);
     const down = vcPressure(topo.to, state, params);
+    if (topo.to === 'vacuum' && params.vacuum_pump && topo.from === 'chamber') {
+      // Bomba limita a vazão (V_VAC tratada como sem perda); ar e vapor saem cada um com ρ_i·S.
+      const pump = params.vacuum_pump;
+      const V = params.chamber.V;
+      const va = vacuum_pump_flow(up.P, state.chamber.m_air, V, pump, dt);
+      const pumpVap = { ...pump, S_nom_m3_per_s: pump.S_nom_m3_per_s * (pump.vapor_factor ?? 1) };
+      const vv = vacuum_pump_flow(up.P, state.chamber.m_vap, V, pumpVap, dt);
+      acc.chamber.air_out += va;
+      acc.chamber.vap_out += vv;
+      out.vac_air += va;
+      out.vac_vap += vv;
+      continue;
+    }
     const m = choked_flow(up.P, up.T, down.P, topo.params);
     if (m <= 0) continue;
 
@@ -188,7 +271,19 @@ export function system_step(
     if (topo.from === 'chamber' || topo.from === 'jacket') {
       acc[topo.from].air_out += air_share;
       acc[topo.from].vap_out += vap_share;
+      if (topo.from === 'chamber') {
+        const k = topo.to === 'vacuum' ? 'vac' : 'exh';
+        out[`${k}_air`] += air_share;
+        out[`${k}_vap`] += vap_share;
+      }
     }
+    if (vap_share > 0 && (topo.from === 'generator' || topo.from === 'steam_line')) {
+      if (topo.to === 'chamber') steamInCh += vap_share;
+      if (topo.to === 'jacket') steamInJk += vap_share;
+      if (topo.to === 'chamber' || topo.to === 'jacket')
+        steamH += vap_share * (CP_VAP * up.T + U_FG0);
+    }
+    if (topo.from === 'atmosphere' && topo.to === 'chamber') airIn += air_share;
     if (topo.from === 'generator') {
       // Generator emits plain vapor mass at its T; the latent offset U_FG0 is applied by the
       // receiving chamber_step's H_in, not here — so latent is counted exactly once.
@@ -208,7 +303,8 @@ export function system_step(
   // Load step: chamber gas ↔ load thermal exchange
   // Densidade do gás da câmara p/ escalar convecção (∝ ρ)
   const rho_gas_chamber = (state.chamber.m_air + state.chamber.m_vap) / params.chamber.V;
-  const p_vap_chamber = chamber_pressure(state.chamber, params.chamber).p_vap;
+  const pc_chamber = chamber_pressure(state.chamber, params.chamber);
+  const p_vap_chamber = pc_chamber.p_vap;
   const loadResult = load_step(
     state.load,
     params.load,
@@ -216,15 +312,20 @@ export function system_step(
       T_gas: state.chamber.T,
       rho_gas: rho_gas_chamber,
       rho_gas_atm: RHO_GAS_ATM_REF,
-      T_jacket: state.jacket.T,
+      // A carga irradia com a parede interna da câmara (que a camisa aquece via h_jc), não com o
+      // gás da camisa: sem parede modelada, cai no gás da camisa (back-compat).
+      T_wall: state.chamber.T_wall ?? state.jacket.T,
       p_sat_at: p_sat_water,
       p_vap_chamber,
       chamber_has_vapor: state.chamber.m_vap > 0,
       chamber_vapor_kg: state.chamber.m_vap,
+      y_vap: pc_chamber.p_total > 0 ? p_vap_chamber / pc_chamber.p_total : 0,
     },
     dt,
   );
   const Q_load = loadResult.Q_conv_from_gas; // convectivo retirado do gás
+  const Q_rad_load = loadResult.Q_rad_from_wall; // radiação retirada da parede da câmara
+  const hasWall = (params.chamber.wall_mass_kg ?? 0) > 0;
 
   // Conservação de água carga↔câmara: >0 evaporou p/ câmara (entra), <0 condensou (sai).
   // vaporToChamber_kg é uma MASSA (já ·dt); os acumuladores são TAXAS (kg/s), pois
@@ -252,10 +353,31 @@ export function system_step(
   //   over-cancel the un-transported remainder. Negligible while condensation ≪ chamber m_vap.
   const Q_comp_load = (CP_VAP - CV_VAP) * state.chamber.T * -loadVapRate;
 
+  // Porta aberta: o gás da câmara relaxa p/ ar ambiente a 1 atm. Sai mistura (ar+vapor) com a
+  // composição atual e entra ar a T_amb, ambos à taxa k = a/τ — passa pelos mesmos acumuladores
+  // das válvulas, então massa e energia (entalpia de entrada/saída) seguem o modelo de nós.
+  // ponytail: troca exponencial pura (sem empuxo/ΔP); com câmara pressurizada ela "despressuriza"
+  //   na mesma τ em vez de num jato. Teto: k·dt ≪ 1 (dt 0,05 s, τ/a ≥ 10 s) e o líquido no
+  //   fundo fica. Trocar por fluxo de porta (orifício + empuxo) se precisar da rajada de abertura.
+  const door = params.door_open ?? 0;
+  if (door > 0) {
+    const k = door / (params.door_tau_gas_s ?? DOOR_TAU_GAS_DEFAULT);
+    const T_amb = params.external.atmosphere_T;
+    const air_in = (k * P_ATM * params.chamber.V) / (R_AIR * T_amb);
+    acc.chamber.air_out += k * state.chamber.m_air;
+    acc.chamber.vap_out += k * state.chamber.m_vap;
+    out.door_air += k * state.chamber.m_air;
+    out.door_vap += k * state.chamber.m_vap;
+    doorAirIn = air_in;
+    acc.chamber.air_in += air_in;
+    acc.chamber.inflow_T_weighted += air_in * T_amb;
+    acc.chamber.inflow_T_mass += air_in;
+  }
+
   // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
   // The outflow carries enthalpy cp*T while stored energy is cv*T, so the stability
   // limit is: outflow_mass * dt ≤ stored_mass * (cv/cp) = stored_mass / gamma.
-  // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.33).
+  // Using gamma_AIR = 1.4 for air-dominated flows (conservative bound; vapour gamma ≈ 1.30).
   // Runs after the load injection so the load's condensation outflow is included in the cap.
   for (const key of ['chamber', 'jacket'] as const) {
     const src = state[key] as ChamberState;
@@ -267,7 +389,19 @@ export function system_step(
 
   // Jacket↔chamber wall conduction coupling
   const h_jc = params.jacket_chamber_h_W_per_K ?? 0;
-  const Q_jacket_to_chamber = h_jc > 0 ? h_jc * (state.jacket.T - state.chamber.T) : 0;
+  // A condução camisa→câmara entra na PAREDE (Q_wall_external), então o potencial é
+  // T_camisa − T_parede. Usar T do gás aqui superaquecia a parede em vácuo (gás frio e
+  // desacoplado → fluxo enorme sem freio): parede a ~178 °C com camisa a ~135 °C, e o ar
+  // admitido depois (fase 10) esquentava a 155–160 °C ao tocar essa parede.
+  const T_chamber_wall = state.chamber.T_wall ?? state.chamber.T;
+  const Q_jacket_to_chamber = h_jc > 0 ? h_jc * (state.jacket.T - T_chamber_wall) : 0;
+  // Porta aberta: parede interna perde calor p/ o ambiente, proporcional à abertura.
+  const Q_door_wall =
+    door > 0
+      ? door *
+        (params.door_h_open_W_per_K ?? DOOR_H_OPEN_DEFAULT) *
+        (T_chamber_wall - params.external.atmosphere_T)
+      : 0;
   // Positive: heat flows from jacket to chamber (jacket hotter)
 
   // ponytail: ambient loss is a vessel-calibration knob (door/penetration losses); tuned to the band later.
@@ -278,34 +412,58 @@ export function system_step(
   const chamberDrain_kg_s = Math.min(params.chamber.drain_kg_per_s ?? 0, state.chamber.m_liq / dt);
 
   // Chamber step (gas absorbs/gives heat to load; gains from jacket via wall)
+  // Condensado que escorreu da carga (acima do que ela retém) entra como líquido na câmara.
+  // chamber_step credita CP_LIQ·inflow_T (T misturado das entradas); corrigir p/ a energia real
+  // do condensado (CP_WATER·T do nó), de modo que carga + câmara conservem energia.
+  const liqFromLoad = loadResult.liqToChamber_kg / dt; // kg/s
+  const chamberInflowT = inflowT(acc.chamber, state.chamber.T);
+  const Q_liq_from_load = loadResult.liqToChamber_J / dt - liqFromLoad * CP_LIQ * chamberInflowT;
   const chamberFluxes: ChamberFluxes = {
-    inflow: speciesIn(acc.chamber),
-    inflow_T: inflowT(acc.chamber, state.chamber.T),
+    inflow: { ...speciesIn(acc.chamber), liq: liqFromLoad },
+    inflow_T: chamberInflowT,
     outflow: { ...speciesOut(acc.chamber), liq: chamberDrain_kg_s },
-    Q_external: -Q_load + Q_comp_load - Q_ambient_chamber, // loses heat to the load + flow-work compensation for load-transfer vapor + ambient loss
-    Q_wall_external: Q_jacket_to_chamber, // jacket conduction heats the WALL, not the gas
+    Q_external: -Q_load + Q_comp_load - Q_ambient_chamber + Q_liq_from_load, // loses heat to the load + flow-work compensation for load-transfer vapor + ambient loss
+    // jacket conduction heats the WALL, not the gas; the wall also radiates to the load.
+    // Sem parede (wall_C = 0) chamber_step descarta Q_wall_external → a radiação sai do gás da camisa.
+    Q_wall_external: Q_jacket_to_chamber - Q_door_wall - (hasWall ? Q_rad_load : 0),
     wall_coupling_scale: rho_gas_chamber / RHO_GAS_ATM_REF,
   };
   const nextChamber = chamber_step(state.chamber, params.chamber, chamberFluxes, dt);
+  // Condensado na parede/câmara = m_liq que apareceu por mudança de fase (descontado o líquido
+  // que entrou da carga e o que saiu pelo dreno). dm_liq_out vem do próprio chamber_step —
+  // já é o dreno efetivo (pós-teto de 50% do disponível); não duplicar o cálculo do teto aqui.
+  const liqIn = liqFromLoad * dt;
+  const liqOut = nextChamber.dm_liq_out ?? 0;
+  const dPhase = nextChamber.m_liq - (state.chamber.m_liq + liqIn - liqOut);
+  const cond_wall_kg = Math.max(0, dPhase);
+  const evap_wall_kg = Math.max(0, -dPhase);
+  // Rateio do saído real (pós-tetos) entre os caminhos, na proporção das taxas brutas.
+  // acc.*_out inclui a condensação na carga (caminho interno, não exposto).
+  const fAir = acc.chamber.air_out > 0 ? (nextChamber.dm_air_out ?? 0) / (acc.chamber.air_out * dt) : 0;
+  const fVap = acc.chamber.vap_out > 0 ? (nextChamber.dm_vap_out ?? 0) / (acc.chamber.vap_out * dt) : 0;
 
-  // Jacket step (loses heat to chamber via wall; radia p/ a carga)
+  // Jacket step (loses heat to chamber via wall; sem parede modelada, radia direto p/ a carga)
   const jacketFluxes: ChamberFluxes = {
     inflow: speciesIn(acc.jacket),
     inflow_T: inflowT(acc.jacket, state.jacket.T),
     outflow: speciesOut(acc.jacket),
-    Q_external: -Q_jacket_to_chamber - loadResult.Q_rad_from_jacket, // loses to chamber + radia p/ carga
+    Q_external: -Q_jacket_to_chamber - (hasWall ? 0 : Q_rad_load),
   };
   const nextJacket = chamber_step(state.jacket, params.jacket, jacketFluxes, dt);
 
-  // Generator step
+  // Generator step (+ bomba de reposição V_GEN_WATER_IN: não é válvula da topologia de gás)
   let nextGenerator: GeneratorState | null = state.generator;
   if (state.generator && params.generator) {
+    const feed = valves['V_GEN_WATER_IN']
+      ? (params.generator_feed ?? { kg_per_s: GEN_FEED_DEFAULT_KG_S, T_K: params.external.atmosphere_T })
+      : undefined;
     nextGenerator = generator_step(
       state.generator,
       params.generator,
       actuators.heater_gen,
       generatorVaporOutflow,
       dt,
+      feed,
     );
   }
 
@@ -323,5 +481,25 @@ export function system_step(
     f0_minutes: f0.value_minutes,
     time_s: state.time_s + dt,
     valve_tripped,
+    cond_load_kg: loadResult.cond_kg,
+    evap_load_kg: loadResult.evap_kg,
+    cond_wall_kg,
+    evap_wall_kg,
+    load_to_chamber_kg: liqIn,
+    drain_kg: liqOut,
+    flows: {
+      steam_in_chamber_kg: steamInCh * dt,
+      steam_in_jacket_kg: steamInJk * dt,
+      steam_in_H_J: steamH * dt,
+      exhaust_air_kg: out.exh_air * fAir * dt + (nextChamber.dm_relief_air ?? 0),
+      exhaust_vap_kg: out.exh_vap * fVap * dt + (nextChamber.dm_relief_vap ?? 0),
+      vacuum_air_kg: out.vac_air * fAir * dt,
+      vacuum_vap_kg: out.vac_vap * fVap * dt,
+      air_in_kg: airIn * dt,
+      door_air_in_kg: doorAirIn * dt,
+      door_air_out_kg: out.door_air * fAir * dt,
+      door_vap_out_kg: out.door_vap * fVap * dt,
+      jacket_cond_kg: nextJacket.dm_drop ?? 0,
+    },
   };
 }

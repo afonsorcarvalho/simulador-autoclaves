@@ -22,6 +22,8 @@ describe('knob factory file', () => {
   it('shipped knobs.factory.json is in sync with registry defaults', () => {
     const factory = JSON.parse(readFileSync(SHIPPED, 'utf8')) as Record<string, number>;
     for (const k of KNOBS) {
+      // Padrão depende do modo (CLP real/env SIM_JACKET_CV): fica fora do arquivo de propósito.
+      if (k.id === 'plant.valve.steam_in_jacket_mm') continue;
       expect(factory[k.id], `missing ${k.id}`).toBeDefined();
       expect(factory[k.id]).toBeCloseTo(k.default, 9);
     }

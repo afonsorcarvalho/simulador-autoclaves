@@ -53,3 +53,12 @@ scripts/__pycache__/
 packages/protocol/dist/*
 !packages/protocol/dist/registers.ts
 !packages/protocol/dist/registers.h
+
+# mockups do brainstorming (visual companion)
+.superpowers/
+
+# Config local do simulador de erros (contem IP/senha do CLP/HMI)
+apps/web/erros.local.json
+
+# Historico de ciclos gravados (dados locais)
+apps/web/ciclos/

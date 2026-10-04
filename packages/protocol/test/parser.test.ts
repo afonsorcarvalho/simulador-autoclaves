@@ -76,6 +76,29 @@ registers:
     expect(() => parseRegisters(yaml)).toThrow(/holding register .* must declare/i);
   });
 
+  it('rejects a range that overflows the register storage type after scaling', () => {
+    const yaml = `
+version: 1
+spaces:
+  holding_registers: { base: 0x3000, end: 0x3FFF }
+registers:
+  - { id: P_X, space: holding_registers, address: 0x3000, scale: 1000, range: [0, 40], description: "x" }
+`;
+    // 40 × 1000 = 40000 > int16 max 32767
+    expect(() => parseRegisters(yaml)).toThrow(/exceeds int16 bounds/i);
+  });
+
+  it('accepts a range that fits the storage type after scaling', () => {
+    const yaml = `
+version: 1
+spaces:
+  holding_registers: { base: 0x3000, end: 0x3FFF }
+registers:
+  - { id: P_X, space: holding_registers, address: 0x3000, scale: 1000, range: [-1, 5], description: "x" }
+`;
+    expect(parseRegisters(yaml).registers).toHaveLength(1);
+  });
+
   it('allows same address in different spaces', () => {
     const yaml = `
 version: 1

@@ -25,6 +25,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Link href="/knobs" className="hover:text-blue-400">
             Knobs
           </Link>
+          <Link href="/erros" className="hover:text-blue-400">
+            Simulador de erros
+          </Link>
+          <Link href="/analise" className="hover:text-blue-400">
+            Análise de ciclos
+          </Link>
         </nav>
         <main className="p-4">{children}</main>
       </body>

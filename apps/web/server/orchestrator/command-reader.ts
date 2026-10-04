@@ -2,10 +2,13 @@ import type { ModbusBridge } from '../bridge/bridge.js';
 import { RegisterAccess } from '../bridge/register-access.js';
 import { REGISTERS, type RegisterId } from '@sim/protocol/registers';
 import type { ValveCommands, ActuatorCommands } from '@sim/physics';
+import type { FaultEngine } from '../faults/engine.js';
 
-/** Read all discrete inputs and split into the shapes physics expects. */
+/** Read all discrete inputs and split into the shapes physics expects.
+ *  Com `faults`, válvulas travadas (valve.stuck) sobrepõem o comando lido do CLP. */
 export async function readCommands(
   bridge: ModbusBridge,
+  faults?: FaultEngine,
 ): Promise<{ valves: ValveCommands; actuators: ActuatorCommands }> {
   const access = new RegisterAccess(bridge);
   const valves: ValveCommands = {};
@@ -26,5 +29,5 @@ export async function readCommands(
     }
   }
 
-  return { valves, actuators: { pump_vac, heater_gen } };
+  return { valves: faults ? faults.applyValves(valves) : valves, actuators: { pump_vac, heater_gen } };
 }

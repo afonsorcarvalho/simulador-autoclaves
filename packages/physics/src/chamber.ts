@@ -8,6 +8,19 @@ export interface ChamberState {
   m_liq: number; // kg
   T: number; // K
   T_wall?: number; // K — wall temperature; if undefined, defaults to T at first step
+  /** Liquid outflow actually applied THIS step (kg), after the 50% available-mass cap below.
+   *  Callers that need to know how much drain really left (e.g. to back out condensation-only
+   *  mass from the liquid balance) read this instead of recomputing the same cap. Stale/unused
+   *  as an input — only meaningful on the value chamber_step() just returned. */
+  dm_liq_out?: number;
+  /** Gás que saiu de fato neste passo (kg, pós-teto de 50%) — mesmo contrato de dm_liq_out. */
+  dm_air_out?: number;
+  dm_vap_out?: number;
+  /** Ventado pelo alívio de pressão neste passo (kg). */
+  dm_relief_air?: number;
+  dm_relief_vap?: number;
+  /** Condensado descartado (allowLiquid=false, camisa) neste passo (kg). */
+  dm_drop?: number;
 }
 
 export interface ChamberParams {
@@ -17,8 +30,15 @@ export interface ChamberParams {
   wall_mass_kg?: number;
   /** Specific heat of the wall material (J/(kg·K)). Default: 500 (stainless steel). */
   wall_cp_J_per_kg_K?: number;
-  /** Convective heat-transfer coefficient gas↔wall (W/K). Default: 200. */
+  /** Gas↔wall coefficient (W/K) with pure steam (condensing film). Default: 200. */
   wall_h_W_per_K?: number;
+  /** Gas↔wall coefficient (W/K) with dry air (natural convection, ~10× smaller). The effective
+   *  coefficient interpolates by vapor MOLE fraction y (same blocking rule as the load's h_cond):
+   *  h = h_air + (h_steam − h_air)·y. Default: wall_h_W_per_K (composition-independent, back-compat). */
+  wall_h_air_W_per_K?: number;
+  /** Gas↔wall coefficient (W/K) with pure DRY steam (wall above dew point: forced convection of
+   *  the inlet jet, no film). h_dry = h_air·(1−y) + h_steam_dry·y. Default: wall_h_air_W_per_K. */
+  wall_h_steam_dry_W_per_K?: number;
   /** Passive pressure-relief setpoint (Pa). When total pressure exceeds this, excess vapor
    *  (or air if needed) is vented. Undefined = no relief (default, back-compat). */
   relief_pressure_Pa?: number;
@@ -180,7 +200,28 @@ export function chamber_step(
   // If wall_mass_kg is zero or undefined the model is bypassed (back-compat).
   const wall_mass = p.wall_mass_kg ?? 0;
   const wall_cp = p.wall_cp_J_per_kg_K ?? 500;
-  const wall_h = (p.wall_h_W_per_K ?? 200) * (f.wall_coupling_scale ?? 1);
+  const h_steam = p.wall_h_W_per_K ?? 200;
+  const h_air = p.wall_h_air_W_per_K ?? h_steam;
+  // Vapor seco (parede acima do orvalho) ainda troca bem: o jato superaquecido da admissão é
+  // convecção forçada contra a parede, e é isso que dessuperaquece o gás para perto de T_sat.
+  const h_steam_dry = p.wall_h_steam_dry_W_per_K ?? h_air;
+  // Fração MOLAR de vapor: o ar não-condensável se acumula na interface e bloqueia o filme de
+  // condensação na proporção da pressão parcial (mesma regra do h_cond da carga). O filme só
+  // existe se a parede está abaixo do ponto de orvalho (p_vap > p_sat(T_parede)); parede mais
+  // quente que o orvalho (ex.: ar úmido após a quebra de vácuo, camisa quente) = convecção seca.
+  // ponytail: degrau seco/condensando sem histerese; suavizar se aparecer chattering no HOLD.
+  const nv = prov.m_vap * R_VAP;
+  const na = m_air * R_AIR;
+  const y_vap = nv + na > 0 ? nv / (nv + na) : 1;
+  const T_wall_0 = s.T_wall ?? s.T;
+  const condensing =
+    (nv * prov.T) / p.V > p_sat_water(Math.max(T_MIN_K, Math.min(T_wall_0, T_MAX_K)));
+  // Dessuperaquecimento só com gás MAIS quente que a parede (jato de vapor superaquecido da
+  // admissão). Parede aquecendo o gás (ar/vapor após a quebra, camisa quente) = convecção natural.
+  const desuperheating = prov.T > T_wall_0;
+  const wall_h =
+    (h_air * (1 - y_vap) + (condensing ? h_steam : desuperheating ? h_steam_dry : h_air) * y_vap) *
+    (f.wall_coupling_scale ?? 1);
   const wall_C = wall_mass * wall_cp; // J/K
   let T_wall: number | undefined;
 
@@ -228,12 +269,15 @@ export function chamber_step(
   T = Math.max(T_MIN_K, Math.min(eq.T, T_MAX_K));
   m_vap = eq.m_vap;
   m_liq = eq.m_liq;
+  const dm_drop = p.allowLiquid ? 0 : m_liq;
   // Jacket drips: the condensate the bisection just partitioned at CP_LIQ·T leaves the CV,
   // carrying exactly that enthalpy out. Energy stays conserved because it was in U_gas.
   if (!p.allowLiquid) m_liq = 0;
 
   // 5. Pressure relief: vent excess vapor (or air) when P_total exceeds setpoint.
   // Models a passive mechanical relief valve (e.g., on the jacket). No PID — pure set-and-vent.
+  const m_air_pre = m_air;
+  const m_vap_pre = m_vap;
   if (p.relief_pressure_Pa !== undefined && p.relief_pressure_Pa > 0) {
     const setpoint = p.relief_pressure_Pa;
     const p_air_now = (m_air * R_AIR * T) / p.V;
@@ -253,14 +297,31 @@ export function chamber_step(
       if (m_vap_target < m_vap) {
         // Normal case: venting vapor alone brings P down to setpoint.
         m_vap = m_vap_target;
-        // T unchanged — venting at constant T is approximately isenthalpic.
       } else {
         // Air alone exceeds setpoint — vent air too until p_air = setpoint.
         m_air = Math.max((setpoint * p.V) / (R_AIR * T), 0);
         m_vap = 0;
       }
+      // O ventilado sai com ENTALPIA h = u + R·T: o gás que fica paga o trabalho de fluxo R·T por kg
+      // e esfria. Tirar a massa à T constante (base u) deixava o gás de passagem (válvula aberta +
+      // alívio) subir até γ·T_entrada − perdas: 152 °C com vapor de 148 °C.
+      const gas_C = m_air * CV_AIR + m_vap * CV_VAP + m_liq * CP_LIQ;
+      if (gas_C > 0) {
+        const W_flow = ((m_air_pre - m_air) * R_AIR + (m_vap_pre - m_vap) * R_VAP) * T;
+        T = Math.max(T_MIN_K, T - W_flow / gas_C);
+      }
     }
   }
 
-  return T_wall !== undefined ? { m_air, m_vap, m_liq, T, T_wall } : { m_air, m_vap, m_liq, T };
+  const out = {
+    dm_liq_out,
+    dm_air_out,
+    dm_vap_out,
+    dm_relief_air: m_air_pre - m_air,
+    dm_relief_vap: m_vap_pre - m_vap,
+    dm_drop,
+  };
+  return T_wall !== undefined
+    ? { m_air, m_vap, m_liq, T, T_wall, ...out }
+    : { m_air, m_vap, m_liq, T, ...out };
 }

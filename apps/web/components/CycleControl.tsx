@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { startCycle, stopCycle } from '../lib/api';
+import { startCycle, stopCycle, resetPlant } from '../lib/api';
 import { Card } from './ui/Card';
 import { Badge } from './ui/Badge';
 import { fmtSeconds, fmtMinutes } from '../lib/format';
@@ -49,6 +49,27 @@ export function CycleControl({ snapshot }: { snapshot: Snapshot | null }) {
             className="px-3 py-1.5 rounded bg-red-700 hover:bg-red-600 text-sm font-medium disabled:opacity-50"
           >
             Stop
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              confirm(
+                'Resetar para máquina fria (tudo a 22 °C e 1 atm)? O ciclo virtual é parado.',
+              ) && void run(() => resetPlant('cold'))
+            }
+            className="px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-sm font-medium disabled:opacity-50"
+          >
+            Máquina fria
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              confirm('Resetar para máquina pré-aquecida? O ciclo virtual é parado.') &&
+              void run(() => resetPlant('preheated'))
+            }
+            className="px-3 py-1.5 rounded bg-orange-700 hover:bg-orange-600 text-sm font-medium disabled:opacity-50"
+          >
+            Máquina pré-aquecida
           </button>
         </div>
       </div>

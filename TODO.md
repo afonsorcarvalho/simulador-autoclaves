@@ -16,12 +16,6 @@
   - Cap de outflow `chamber.ts:89-91` / `integrator.ts:211-212` aplicado no lado errado → massa fantasma se ligar válvula chamber↔jacket. Topologia atual não dispara. Aplicar cap ao flux partilhado antes do split source/dest.
   - Menor: constantes Antoine inline em `chamber.ts` (usar `p_sat_water`); `k_evap=1e-7` magic → `constants.ts`; F0 dispara no drying (falta via de arrefecimento load/jacket). _(Nota SP-A: `chamber.ts` já usa `p_sat_water` e o `k_evap` foi removido pela bisecção mass-only.)_
   - Menor (SP-A, 2026-07-06): `chamber.ts:105` zera líquido a entrar na jaqueta mas `H_in` ainda conta `dm_liq_in·CP_LIQ·T` → fuga se alguma vez entrar líquido na jaqueta. Não dispara hoje (jaqueta é alimentada a vapor). Guardar/asserir se algum cenário injetar líquido na jaqueta.
-- Protocolo — SP5-prep, resolver antes de escrever firmware (protocol-consistency-reviewer, 2026-07-03):
-  - `emit-cpp.ts:21-30` — header C++ não emite `type` → C++ não distingue uint16/int16. `F0_X10` (uint16, chega a 50000) lido como signed = erro >32767. Emitir `type` no `dist/registers.h`.
-  - Escalas hardcoded em código consumidor em vez do register: `F0_X10` ×10 (`sensor-publisher.ts:36` / `plc.ts:73`), `SIM_TIME_SCALE` ×100. Mover escala p/ definição do register (single source of truth) — senão TS e firmware driftam.
-  - Parser (`parser.ts`/`schema.ts`) não valida `range×scale` cabe em int16 → overflow silencioso (clip em `register-access.ts:69`). Adicionar bound-check na cross-validation.
-  - Sentinelas PT100 (-32768=OPEN / 32767=SHORT) documentadas só em `P_CHAMBER_INT`/`T_CHAMBER_INT`; faltam nos outros canais incl. `T_TESTEMUNHO` (crítico F0). Clarificar/documentar.
-  - Menor: tick 32-bit (`MODEL_TICK_LOW/HIGH`) sem marcador word-order — fixar "LOW = endereço menor" em comentário antes de recombinar.
 - Sub-projeto 5 — Firmware ESP32 + Modbus slave (I/O + watchdog + fast model)
 - Sub-projeto 6 — Injeção de falhas (hooks orchestrator + UI faults + cenários)
 - Sub-projeto 7 — Placa condicionamento KiCad (schematic + PCB + BOM)
@@ -30,7 +24,22 @@
 
 ## Feito
 
-- 2026-07-07 — **Controlo de ciclo + velocidade live + ficheiro de fábrica** (ramo
+- 2026-10-03 — Troca gás↔parede da câmara depende da fração de vapor (knobs `plant.chamber.h_gas_wall_steam`/`h_gas_wall_air`): após a quebra de vácuo câmara/dreno ficam ~70 °C em vez de ~115 °C. Pendente: validar na bancada com CLP real.
+
+- 2026-10-01 — Documento técnico do simulador (DT-SW AFR-SIM) feito; é confidencial e fica em repositório privado, fora deste repo público.
+- 2026-10-01 — Animação da porta guilhotina no /live (frontal + corte, falhas: obstáculo, FC travado, vazamento, pistão lento; POST /api/door-faults). Falta testar com CLP em modo delta e tipo de porta = 3.
+- 2026-09-30 — Knobs de planta: diâmetros (mm) das válvulas de vapor/camisa/ar/exaustão/dreno, bomba de vácuo com curva S(p) (75 m³/h, 10 mbar), volume/massa da câmara (máquina parada, via reset), balão de ajuda em todos os knobs.
+- 2026-09-30 — Ponte HIL com CLP Delta DVP-SS2 real (`SIM_PLC=delta`): DeltaPlcBridge, cliente Modbus TCP, sonda `probe:delta`.
+
+- 2026-07-09 — **SP5-prep — achados protocol-consistency-reviewer resolvidos.** (1) `emit-cpp`
+  passa a emitir `REG_<id>_TYPE` (MB_TYPE_BOOL/INT16/UINT16) → firmware distingue uint16/int16
+  (`F0_X10` deixa de ler como signed). (2) Escalas movidas p/ register: `F0_X10` scale=10 e
+  `SIM_TIME_SCALE` scale=100 no `registers.yaml`; consumidores (`sensor-publisher`, `plc`) largam
+  os ×10/÷10 hardcoded — RegisterAccess aplica a escala (single source of truth). (3) Parser valida
+  `range×scale` cabe no tipo (`TYPE_BOUNDS` + `resolveType` partilhados em `schema.ts`) → erro em vez
+  de clip silencioso. (4) Sentinelas PT100 documentadas em todos os canais analógicos (incl.
+  `T_TESTEMUNHO`). (5) Word-order do tick 32-bit fixado em comentário (LOW = endereço menor,
+  `(HIGH<<16)|LOW`). Protocolo 28 testes + web 102 verdes; lint/typecheck verdes; generate idempotente.
   `feat/knobs-dashboard`). Componente `CycleControl` (Start/Stop) extraído e reutilizado em Home/Live/
   Virtual PLC (dedup). `SpeedControl` (slider `time.scale`) na Live — muda a velocidade de simulação em
   tempo real a meio do ciclo (scheduler lê `runtime.timeScale` cada firing). `knobs.factory.json`

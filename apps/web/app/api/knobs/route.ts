@@ -28,9 +28,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `unknown knob "${body.id}"` }, { status: 400 });
   }
   const rt = getRuntime();
-  if (knob.timing === 'precycle' && rt.cycle_running) {
+  if (knob.timing !== 'live' && rt.cycle_running) {
     return NextResponse.json(
-      { error: 'cycle knobs cannot change while a cycle is running' },
+      {
+        error:
+          knob.timing === 'reset'
+            ? 'geometria da câmara só muda com a máquina parada'
+            : 'cycle knobs cannot change while a cycle is running',
+      },
       { status: 409 },
     );
   }

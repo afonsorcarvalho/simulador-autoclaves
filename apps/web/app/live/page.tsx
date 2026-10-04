@@ -8,7 +8,12 @@ import { SpeedControl } from '../../components/live/SpeedControl';
 import { PressureChart } from '../../components/live/PressureChart';
 import { TemperatureChart } from '../../components/live/TemperatureChart';
 import { F0Chart } from '../../components/live/F0Chart';
+import { DigitalTimeline } from '../../components/live/DigitalTimeline';
 import { ValveList } from '../../components/live/ValveList';
+import { DoorView } from '../../components/live/DoorView';
+import { CondensadoChart } from '../../components/live/CondensadoChart';
+import { VaporChart } from '../../components/live/VaporChart';
+import { GeneratorView } from '../../components/live/GeneratorView';
 
 export default function LivePage() {
   const { snapshot, history, connected } = useSnapshot();
@@ -22,10 +27,19 @@ export default function LivePage() {
       <SpeedControl />
       <PhaseHeader snap={snapshot} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PressureChart history={history} />
-        <TemperatureChart history={history} />
+        <PressureChart history={history} snap={snapshot} />
+        <TemperatureChart history={history} snap={snapshot} />
         <F0Chart history={history} />
+        <CondensadoChart history={history} snap={snapshot} />
+        <VaporChart history={history} snap={snapshot} />
         <ValveList snap={snapshot} />
+        <GeneratorView snap={snapshot} />
+        <div className="lg:col-span-2">
+          <DoorView snap={snapshot} />
+        </div>
+        <div className="lg:col-span-2">
+          <DigitalTimeline history={history} />
+        </div>
       </div>
     </div>
   );

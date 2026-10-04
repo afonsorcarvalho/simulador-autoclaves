@@ -132,12 +132,17 @@ describe('load↔chamber condensation conserves energy exactly (closed, latent r
       vaporU(c.m_vap, c.T) +
       c.m_liq * CP_LIQ * c.T +
       (c.T_wall !== undefined ? wall_C * c.T_wall : 0);
-    const E0 = chamberEnergy(s.chamber) + nodeEnergy(s);
+    // Com condensação em filme (h_cond) o nó chega a T_boil (134) em segundos e passa a irradiar
+    // p/ a jaqueta (133): a jaqueta entra no balanço (guarda mais estrita, não mais frouxa).
+    const wall_Cj = p.jacket.wall_mass_kg! * p.jacket.wall_cp_J_per_kg_K!;
+    const jacketEnergy = (j: typeof s.jacket) =>
+      j.m_air * CV_AIR * j.T + vaporU(j.m_vap, j.T) + j.m_liq * CP_LIQ * j.T + wall_Cj * j.T_wall!;
+    const E0 = chamberEnergy(s.chamber) + nodeEnergy(s) + jacketEnergy(s.jacket);
     for (let i = 0; i < 200; i++)
       s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, 0.05);
     // sanity: condensation actually happened (test is meaningful)
     expect(s.load.nodes[0]!.m_water).toBeGreaterThan(1e-4);
-    const E1 = chamberEnergy(s.chamber) + nodeEnergy(s);
+    const E1 = chamberEnergy(s.chamber) + nodeEnergy(s) + jacketEnergy(s.jacket);
     expect(Math.abs(E1 - E0)).toBeLessThan(50); // < 50 J over 10 s: no creation AND no flow-work residual
   });
 });

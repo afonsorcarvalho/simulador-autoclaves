@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint server test",
-    "scenario:run": "tsx server/scenario-runner/cli.ts"
+    "scenario:run": "tsx server/scenario-runner/cli.ts",
+    "probe:delta": "tsx scripts/probe-delta.ts"
   },
   "dependencies": {
     "@sim/physics": "workspace:*",

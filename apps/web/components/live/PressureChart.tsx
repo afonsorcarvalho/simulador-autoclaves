@@ -1,7 +1,7 @@
 'use client';
 
 import { Card } from '../ui/Card';
-import { formatHMS } from '../../lib/format';
+import { formatHMS, fmtValor } from '../../lib/format';
 import type { Snapshot } from '../../server/runtime/snapshot';
 import {
   LineChart,
@@ -14,7 +14,7 @@ import {
   Legend,
 } from 'recharts';
 
-export function PressureChart({ history }: { history: Snapshot[] }) {
+export function PressureChart({ history, snap }: { history: Snapshot[]; snap?: Snapshot | null }) {
   const data = history.map((s) => ({
     t: s.cycle_elapsed_s,
     chamber: s.pressures.chamber_bar,
@@ -23,6 +23,13 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
   }));
   return (
     <Card title="Pressure (bar abs)">
+      {snap && (
+        <div className="flex gap-4 text-sm text-slate-200 mb-2 tabular-nums">
+          <span>câmara: {fmtValor(snap.pressures.chamber_bar, 'bar')}</span>
+          <span>camisa: {fmtValor(snap.pressures.jacket_bar, 'bar')}</span>
+          <span>gerador: {fmtValor(snap.pressures.generator_bar, 'bar')}</span>
+        </div>
+      )}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
@@ -34,7 +41,7 @@ export function PressureChart({ history }: { history: Snapshot[] }) {
               stroke="#94a3b8"
               tick={{ fontSize: 10 }}
             />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} domain={[0, 6]} />
+            <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} domain={[0, 5]} />
             <Tooltip
               contentStyle={{ background: '#1e293b', border: '1px solid #475569' }}
               labelFormatter={(v) => formatHMS(Number(v))}

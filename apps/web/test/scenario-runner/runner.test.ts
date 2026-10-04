@@ -32,8 +32,8 @@ function basicParams(): SystemParams {
         params: { Cv: 1e-6, gamma: GAMMA_VAP, R: R_VAP },
         thermostat: {
           target: 'jacket',
-          close_at_Pa: bar_to_Pa(3.54),
-          reopen_at_Pa: bar_to_Pa(3.34),
+          close_at_Pa: bar_to_Pa(3.44),
+          reopen_at_Pa: bar_to_Pa(3.24),
         },
       },
       V_VAC: { from: 'chamber', to: 'vacuum', params: { Cv: 1e-4, gamma: GAMMA_AIR, R: R_AIR } },

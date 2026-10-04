@@ -59,8 +59,10 @@ describe('publishSensors', () => {
 
     await publishSensors(bridge, state, params);
 
-    const f0_raw = await access.getAnalog('F0_X10');
-    expect(f0_raw).toBe(1000); // 100 min × 10
+    // getAnalog applies the register's ×10 scale → minutes; raw storage stays ×10.
+    expect(await access.getAnalog('F0_X10')).toBe(100); // 100 min
+    const [raw] = await bridge.readHoldingRegisters(0x4003, 1);
+    expect(raw).toBe(1000); // 100 min × 10 encoded
   });
 
   it('publishes pressure switch coils based on threshold logic', async () => {

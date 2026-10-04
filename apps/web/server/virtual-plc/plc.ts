@@ -50,12 +50,21 @@ export function chamberValveBangBang(
   return prevOpen;
 }
 
+/** Supervisão do gerador (pressostato + nível), como num CLP real. A resistência NÃO fica ligada
+ *  direto: desliga acima de GEN_P_OFF_BAR e religa abaixo de GEN_P_ON_BAR (abaixo do alívio de
+ *  4,54 bar, para a válvula de segurança quase não atuar). A bomba repõe água do nível mínimo
+ *  até o máximo. Sem isso a física honesta (alívio ventila massa) secava o boiler em ~10 min. */
+export const GEN_P_OFF_BAR = 4.4;
+export const GEN_P_ON_BAR = 4.1;
+
 export class VirtualPLC {
   private readonly sm: CycleStateMachine;
   private readonly access: RegisterAccess;
   private lastTickTime_s = 0;
   private readonly setpoint_C: number;
   private chamberValveOpen = false;
+  private heaterOn = true;
+  private feedPumpOn = false;
 
   constructor(cycle: CycleConfig, bridge: ModbusBridge) {
     this.sm = new CycleStateMachine(cycle);
@@ -89,7 +98,21 @@ export class VirtualPLC {
       controller?.band_high,
     );
     const setpoints = this.commandsFor(this.sm.phase, this.chamberValveOpen);
+    await this.superviseGenerator(setpoints);
     await this.applyValves(setpoints);
+  }
+
+  /** Pressostato (histerese) sobre o pedido de resistência da fase + bomba de reposição por nível. */
+  private async superviseGenerator(sp: ValveSetpoints): Promise<void> {
+    const P_gen = await this.access.getAnalog('P_GENERATOR');
+    if (P_gen >= GEN_P_OFF_BAR) this.heaterOn = false;
+    else if (P_gen <= GEN_P_ON_BAR) this.heaterOn = true;
+    const lvlMin = await this.access.getCoil('LVL_GEN_MIN');
+    const lvlMax = await this.access.getCoil('LVL_GEN_MAX');
+    if (!lvlMin) this.feedPumpOn = true;
+    else if (lvlMax) this.feedPumpOn = false;
+    if (sp.HEATER_GEN) sp.HEATER_GEN = this.heaterOn;
+    if (this.sm.phase !== 'IDLE') sp.V_GEN_WATER_IN = this.feedPumpOn;
   }
 
   private async readSensors(): Promise<PLCSensors> {
@@ -98,7 +121,7 @@ export class VirtualPLC {
       T_chamber_C: await this.access.getAnalog('T_CHAMBER_INT'),
       T_test_C: await this.access.getAnalog('T_TESTEMUNHO'),
       P_jacket_bar: await this.access.getAnalog('P_CHAMBER_EXT'),
-      F0_min: (await this.access.getAnalog('F0_X10')) / 10,
+      F0_min: await this.access.getAnalog('F0_X10'),
     };
   }
 

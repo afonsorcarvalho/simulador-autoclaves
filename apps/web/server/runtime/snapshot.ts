@@ -1,5 +1,8 @@
 import type { SystemState, SystemParams } from '@sim/physics';
 import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar } from '@sim/physics';
+import type { DoorSide, DoorState } from '../bridge/delta-plc.js';
+import type { Fault } from '../faults/types.js';
+import { LVL_GEN_MAX_KG, LVL_GEN_MIN_KG } from '../orchestrator/sensor-publisher.js';
 
 export interface Snapshot {
   t_s: number;
@@ -9,9 +12,76 @@ export interface Snapshot {
   cycle_elapsed_s: number;
   f0_min: number;
   pressures: { chamber_bar: number; jacket_bar: number; generator_bar: number };
-  temperatures: { chamber_C: number; testemunho_C: number; jacket_C: number; generator_C: number };
+  temperatures: {
+    chamber_C: number;
+    /** Sonda do dreno (PT1), com atraso do sensor. */
+    drain_C: number;
+    testemunho_C: number;
+    jacket_C: number;
+    generator_C: number;
+  };
   valves: Record<string, boolean>;
+  /** Atuadores não-válvula (PUMP_VAC, HEATER_GEN). */
+  actuators: Record<string, boolean>;
+  /** Só com SIM_PLC=delta: saídas M40..M59 do CLP, por nome. */
+  plc_outputs?: Record<string, boolean>;
+  /** Só com SIM_PLC=delta: fase do CLP (SIM_PLC_PHASE_REG). */
+  plc_phase?: number;
+  /** Só com SIM_PLC=delta: portas C/D (posição, guarnição, FC, falhas). */
+  doors?: Record<DoorSide, DoorState>;
+  /** Falhas físicas ativas (ver /api/faults); omitido quando não há nenhuma. */
+  faults_active?: Fault[];
   masses: { air_chamber_kg: number; vap_chamber_kg: number; liq_chamber_kg: number };
+  /** Água na carga/câmara (g), condensado/evaporado acumulados no ciclo (g), vazão com sinal (g/min). */
+  condensado?: Condensado;
+  /** Consumo de vapor do ciclo atual (ver Vapor). */
+  vapor?: Vapor;
+  /** Gerador de vapor: água líquida, sensores de nível (mesmos limiares do sensor-publisher) e alívio. */
+  generator?: GeneratorSnap;
+}
+
+export interface GeneratorSnap {
+  agua_kg: number;
+  lvl_min: boolean;
+  lvl_max: boolean;
+  /** Pressão de abertura da válvula de alívio (bar abs). */
+  alivio_bar: number;
+}
+
+/** Massas acumuladas no ciclo (kg, zeradas no início), vazões kg/h (média móvel ~10 s) e energia.
+ *  energia_kwh = Σ m·(h_vap(T_origem) − h_liq(25 °C)) do vapor injetado (câmara + camisa), na base
+ *  de entalpia do modelo físico (h_vap = CP_VAP·T + U_FG0; h_liq = CP_LIQ·T): energia p/ gerar esse
+ *  vapor a partir de água a 25 °C. Exaustão inclui V_EXHAUST, gás de V_DRAIN_INT e alívio (vapor+ar);
+ *  vácuo idem (vapor+ar); dreno = líquido da câmara; camisa_dreno = condensado da camisa. */
+export interface Vapor {
+  injetado_camara_kg: number;
+  injetado_camisa_kg: number;
+  injetado_total_kg: number;
+  exaustao_kg: number;
+  vacuo_kg: number;
+  dreno_kg: number;
+  camisa_dreno_kg: number;
+  ar_admitido_kg: number;
+  vazao_camara_kg_h: number;
+  vazao_camisa_kg_h: number;
+  vazao_total_kg_h: number;
+  energia_kwh: number;
+}
+
+export interface Condensado {
+  /** Água atual na carga (Σ m_water dos nós). */
+  agua_carga_g: number;
+  /** Líquido atual no fundo da câmara. */
+  agua_camara_g: number;
+  /** Acumulados no ciclo (carga + parede), zerados no início. */
+  cond_acum_g: number;
+  evap_acum_g: number;
+  cond_carga_acum_g: number;
+  cond_parede_acum_g: number;
+  /** Líquido que saiu pelo dreno no ciclo. */
+  dreno_acum_g: number;
+  /** (condensação − evaporação) total, média móvel ~10 s: > 0 condensa, < 0 evapora. */
+  vazao_g_min: number;
 }
 
 export interface BuildSnapshotOpts {
@@ -21,6 +91,15 @@ export interface BuildSnapshotOpts {
   cycle_phase: string;
   cycle_elapsed_s: number;
   valves: Record<string, boolean>;
+  actuators?: Record<string, boolean>;
+  plc_outputs?: Record<string, boolean>;
+  plc_phase?: number;
+  doors?: Record<DoorSide, DoorState>;
+  faults_active?: Fault[];
+  /** Leitura da sonda do dreno (°C); sem ela, cai na T do gás. */
+  drain_C?: number | null;
+  condensado?: Condensado;
+  vapor?: Vapor;
 }
 
 export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
@@ -44,6 +123,7 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
     },
     temperatures: {
       chamber_C: K_to_C(o.state.chamber.T),
+      drain_C: o.drain_C ?? K_to_C(o.state.chamber.T),
       testemunho_C: K_to_C(
         (o.state.load.nodes.find((n) => n.isWitness) ?? o.state.load.nodes[0]!).T,
       ),
@@ -51,11 +131,27 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
       generator_C: o.state.generator ? K_to_C(o.state.generator.T) : 0,
     },
     valves: { ...o.valves },
+    actuators: { ...o.actuators },
+    ...(o.plc_outputs && { plc_outputs: { ...o.plc_outputs } }),
+    ...(o.plc_phase !== undefined && { plc_phase: o.plc_phase }),
+    ...(o.doors && { doors: o.doors }),
+    ...(o.faults_active && o.faults_active.length > 0 && { faults_active: o.faults_active }),
     masses: {
       air_chamber_kg: o.state.chamber.m_air,
       vap_chamber_kg: o.state.chamber.m_vap,
       liq_chamber_kg: o.state.chamber.m_liq,
     },
+    ...(o.condensado && { condensado: { ...o.condensado } }),
+    ...(o.vapor && { vapor: { ...o.vapor } }),
+    ...(o.state.generator && {
+      generator: {
+        agua_kg: o.state.generator.m_water_liq,
+        lvl_min: o.state.generator.m_water_liq > LVL_GEN_MIN_KG,
+        lvl_max: o.state.generator.m_water_liq > LVL_GEN_MAX_KG,
+        // mesmo default do modelo (generator.ts)
+        alivio_bar: Pa_to_bar(o.params.generator?.relief_pressure_Pa ?? 600000),
+      },
+    }),
   };
 }
 

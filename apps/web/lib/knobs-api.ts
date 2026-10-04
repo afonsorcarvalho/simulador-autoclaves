@@ -1,13 +1,39 @@
+export type KnobFamily = 'cycle' | 'plant' | 'controller' | 'time';
+
+/** Categorias válidas por família, na ordem fixa de exibição na UI (lista "pertence à família"). */
+export const KNOB_CATEGORIES: Record<KnobFamily, readonly string[]> = {
+  cycle: ['Esterilização', 'Pré-vácuo', 'Secagem'],
+  plant: [
+    'Ambiente',
+    'Câmara',
+    'Camisa',
+    'Gerador',
+    'Válvulas',
+    'Vácuo',
+    'Portas',
+    'Carga',
+    'Perdas e drenos',
+  ],
+  controller: ['Histerese'],
+  time: ['Simulação'],
+};
+
 export interface KnobMeta {
   id: string;
-  family: 'cycle' | 'plant' | 'controller' | 'time';
+  family: KnobFamily;
+  /** Subgrupo dentro da família (uma das KNOB_CATEGORIES[family]); organiza a UI em seções. */
+  categoria: string;
   label: string;
   unit: string;
   default: number;
   min: number;
   max: number;
   step?: number;
-  timing: 'live' | 'precycle';
+  decimals?: number;
+  options?: string[];
+  optionLabels?: string[];
+  timing: 'live' | 'precycle' | 'reset';
+  help: string;
 }
 
 export interface KnobsResponse {

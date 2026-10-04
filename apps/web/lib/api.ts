@@ -40,3 +40,11 @@ export async function setValve(id: string, value: boolean): Promise<void> {
     throw new Error(body.error ?? `valve write failed: ${res.status}`);
   }
 }
+
+export async function resetPlant(preset: 'cold' | 'preheated'): Promise<void> {
+  const res = await fetch(`/api/plant/reset?preset=${preset}`, { method: 'POST' });
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: string };
+    throw new Error(body.error ?? `reset failed: ${res.status}`);
+  }
+}

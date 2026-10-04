@@ -442,3 +442,30 @@ describe('chamber_step — two-phase equilibrium', () => {
     expect(Number.isFinite(cur.m_vap)).toBe(true);
   });
 });
+
+describe('chamber_step — vapor seco superaquecido ↔ parede', () => {
+  // 3 bar de vapor a 160 °C (T_sat ≈ 134 °C), parede seca a 136 °C (acima do orvalho).
+  const p = (dry?: number): ChamberParams => ({
+    V: 0.15,
+    allowLiquid: true,
+    wall_mass_kg: 50,
+    wall_cp_J_per_kg_K: 500,
+    wall_h_W_per_K: 200,
+    wall_h_air_W_per_K: 15,
+    ...(dry !== undefined ? { wall_h_steam_dry_W_per_K: dry } : {}),
+  });
+  const s: ChamberState = { m_air: 0, m_vap: 0.24, m_liq: 0, T: C_to_K(160), T_wall: C_to_K(136) };
+
+  it('dessuperaquece com h_vapor_seco (não com o h do ar)', () => {
+    const ar = chamber_step(s, p(), noFlux(s.T), 5);
+    const seco = chamber_step(s, p(100), noFlux(s.T), 5);
+    expect(seco.T).toBeLessThan(ar.T - 3);
+  });
+
+  it('parede mais quente que o gás seco: continua convecção do ar', () => {
+    const frio: ChamberState = { ...s, m_vap: 0.05, T: C_to_K(120), T_wall: C_to_K(136) };
+    const a = chamber_step(frio, p(), noFlux(frio.T), 5);
+    const b = chamber_step(frio, p(100), noFlux(frio.T), 5);
+    expect(b.T).toBeCloseTo(a.T, 6);
+  });
+});

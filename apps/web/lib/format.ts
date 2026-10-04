@@ -25,3 +25,12 @@ export function formatHMS(totalSeconds: number): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(hh)}:${p(mm)}:${p(ss)}`;
 }
+
+const CASAS = { bar: 3, '°C': 1, g: 0, 'g/min': 0, kg: 2, 'kg/h': 0, kWh: 2 } as const;
+
+/** Valor atual em pt-BR: bar 3 casas, °C 1 casa, g/g/min/kg/h inteiros, kg e kWh 2 casas (vírgula, sem milhar). */
+export function fmtValor(v: number, unidade: keyof typeof CASAS): string {
+  const d = CASAS[unidade];
+  const s = (Math.round(v * 10 ** d) / 10 ** d || 0).toFixed(d).replace('.', ',');
+  return `${s} ${unidade}`;
+}

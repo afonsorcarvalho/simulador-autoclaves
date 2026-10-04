@@ -21,6 +21,13 @@ export function h_vap_water(T_K: number): number {
   return (2533.9 - 2.769 * t) * 1e3; // J/kg
 }
 
+// Internal energy of vaporization u_fg = h_fg − P·v_fg, linear fit to IAPWS-IF97 (100..140 °C):
+// u_fg(T_C) ≈ 2412.0 − 3.22·T_C (kJ/kg). Matches 100°C→2088, 121°C→2022, 140°C→1961 within 3 kJ/kg.
+export function u_fg_water(T_K: number): number {
+  const t = K_to_C(T_K);
+  return (2412.0 - 3.22 * t) * 1e3; // J/kg
+}
+
 // Inverse of p_sat_water: saturation (boiling) temperature at a given pressure.
 // Analytic inversion of the Antoine equation. Below ~1 Pa the log blows up, so the
 // result is floored at 273.15 K (near-vacuum boiling point is effectively 0°C for our range).

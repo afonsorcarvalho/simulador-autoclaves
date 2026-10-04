@@ -3,9 +3,11 @@ import { resolve } from 'node:path';
 import type { Runtime } from '../runtime/singleton.js';
 import { KNOBS, knobById } from './registry.js';
 
-/** Default override-file path (relative to cwd = apps/web when running dev/start). */
+/** Default override-file path (relative to cwd = apps/web when running dev/start).
+ * SIM_KNOBS_OVERRIDE troca o caminho — os testes usam um arquivo temporário para nunca
+ * ler nem apagar os ajustes reais do operador. */
 export function defaultOverridePath(): string {
-  return resolve(process.cwd(), 'knobs.override.json');
+  return resolve(process.env.SIM_KNOBS_OVERRIDE ?? resolve(process.cwd(), 'knobs.override.json'));
 }
 
 /** Versioned factory-defaults file (committed). Baseline for reset; falls back to
@@ -40,6 +42,7 @@ function validate(id: string, value: number): void {
   if (value < k.min || value > k.max) {
     throw new Error(`value ${value} out of range [${k.min}, ${k.max}] for "${id}"`);
   }
+  if (k.options && !Number.isInteger(value)) throw new Error(`value must be an option index`);
 }
 
 /** Apply the factory baseline to the runtime (boot, before overrides). */
@@ -87,6 +90,8 @@ export function resetAll(
   factoryPath = defaultFactoryPath(),
 ): void {
   const factory = readFile(factoryPath);
-  for (const k of KNOBS) k.set(rt, factoryValue(k, factory));
+  // Geometria (timing 'reset') reseta a planta: nunca no meio de um ciclo.
+  for (const k of KNOBS)
+    if (k.timing !== 'reset' || !rt.cycle_running) k.set(rt, factoryValue(k, factory));
   if (existsSync(path)) rmSync(path);
 }

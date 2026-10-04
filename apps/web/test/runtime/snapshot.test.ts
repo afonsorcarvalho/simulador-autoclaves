@@ -30,6 +30,47 @@ function makeParams(): SystemParams {
 }
 
 describe('buildSnapshot', () => {
+  it('gerador: água, sensores de nível e alívio', () => {
+    const base = {
+      params: makeParams(),
+      cycle_running: false,
+      cycle_phase: 'IDLE',
+      cycle_elapsed_s: 0,
+      valves: {},
+    };
+    const s = buildSnapshot({ ...base, state: makeState() });
+    expect(s.generator).toEqual({ agua_kg: 10, lvl_min: true, lvl_max: false, alivio_bar: 6 });
+    const st = makeState();
+    st.generator!.m_water_liq = 0.5;
+    expect(buildSnapshot({ ...base, state: st }).generator).toMatchObject({
+      lvl_min: false,
+      lvl_max: false,
+    });
+  });
+
+  it('campos do CLP só aparecem quando passados (modo delta)', () => {
+    const base = {
+      state: makeState(),
+      params: makeParams(),
+      cycle_running: true,
+      cycle_phase: 'HOLD',
+      cycle_elapsed_s: 0,
+      valves: {},
+      actuators: { PUMP_VAC: true },
+    };
+    const sim = buildSnapshot(base);
+    expect(sim.actuators).toEqual({ PUMP_VAC: true });
+    expect(sim).not.toHaveProperty('plc_outputs');
+    expect(sim).not.toHaveProperty('plc_phase');
+    const delta = buildSnapshot({
+      ...base,
+      plc_outputs: { OUT_ALARME_SONORO: true },
+      plc_phase: 0,
+    });
+    expect(delta.plc_outputs).toEqual({ OUT_ALARME_SONORO: true });
+    expect(delta.plc_phase).toBe(0);
+  });
+
   it('extracts pressures + temperatures + F0 + masses from SystemState', () => {
     const snap = buildSnapshot({
       state: makeState(),
@@ -61,8 +102,9 @@ describe('SnapshotPublisher', () => {
       cycle_elapsed_s: 0,
       f0_min: 0,
       pressures: { chamber_bar: 1, jacket_bar: 1, generator_bar: 1 },
-      temperatures: { chamber_C: 22, testemunho_C: 22, jacket_C: 22, generator_C: 22 },
+      temperatures: { chamber_C: 22, drain_C: 22, testemunho_C: 22, jacket_C: 22, generator_C: 22 },
       valves: {},
+      actuators: {},
       masses: { air_chamber_kg: 0, vap_chamber_kg: 0, liq_chamber_kg: 0 },
     };
   }

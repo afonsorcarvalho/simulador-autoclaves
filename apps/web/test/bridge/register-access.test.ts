@@ -49,14 +49,22 @@ describe('RegisterAccess', () => {
   });
 
   it('uint16 registers handle values above 32767 without sign wrap', async () => {
-    await access.setAnalog('F0_X10', 5000); // F0=500 min, value 5000 (fits int16, sanity)
-    expect(await access.getAnalog('F0_X10')).toBe(5000);
+    // EQUIPMENT_ID is uint16 with no scale, so value == raw storage.
+    await access.setAnalog('EQUIPMENT_ID', 5000); // fits int16, sanity
+    expect(await access.getAnalog('EQUIPMENT_ID')).toBe(5000);
 
-    await access.setAnalog('F0_X10', 50000); // F0=5000 min, value 50000 (exceeds int16)
-    expect(await access.getAnalog('F0_X10')).toBe(50000);
+    await access.setAnalog('EQUIPMENT_ID', 50000); // exceeds int16
+    expect(await access.getAnalog('EQUIPMENT_ID')).toBe(50000);
 
-    await access.setAnalog('F0_X10', -10); // negative not allowed for uint16
-    expect(await access.getAnalog('F0_X10')).toBe(0); // clipped to 0
+    await access.setAnalog('EQUIPMENT_ID', -10); // negative not allowed for uint16
+    expect(await access.getAnalog('EQUIPMENT_ID')).toBe(0); // clipped to 0
+  });
+
+  it('uint16 register with scale round-trips through the scale: F0_X10 (×10)', async () => {
+    await access.setAnalog('F0_X10', 137); // 137 min F0
+    const [raw] = await bridge.readHoldingRegisters(0x4003, 1);
+    expect(raw).toBe(1370); // stored ×10
+    expect(await access.getAnalog('F0_X10')).toBe(137);
   });
 
   it('throws when accessing a register with wrong type', async () => {

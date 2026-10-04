@@ -17,7 +17,7 @@ function envAt(opts: Partial<LoadEnv>): LoadEnv {
     T_gas: C_to_K(134),
     rho_gas: 0.6,
     rho_gas_atm: 0.6,
-    T_jacket: C_to_K(134),
+    T_wall: C_to_K(134),
     p_sat_at: p_sat_water,
     p_vap_chamber: p_sat_water(C_to_K(134)),
     chamber_has_vapor: true,
@@ -60,9 +60,9 @@ describe('load_step', () => {
 
   it('radiation from a hot jacket warms a dry node under vacuum', () => {
     const s = oneNode({ T: C_to_K(60), m_water: 0 });
-    const e = envAt({ rho_gas: 1e-6, T_jacket: C_to_K(140), p_vap_chamber: 0 });
+    const e = envAt({ rho_gas: 1e-6, T_wall: C_to_K(140), p_vap_chamber: 0 });
     const r = load_step(s, P, e, 1);
-    expect(r.Q_rad_from_jacket).toBeGreaterThan(0);
+    expect(r.Q_rad_from_wall).toBeGreaterThan(0);
     expect(r.next.nodes[0]!.T).toBeGreaterThan(s.nodes[0]!.T);
   });
 
@@ -80,7 +80,7 @@ describe('load_step', () => {
       nodes: [{ name: 'w', material: 'COTTON_TEXTILE', mass_kg: 5, T: C_to_K(134), m_water: 0.3 }],
     };
     const e = envAt({
-      T_jacket: C_to_K(140),
+      T_wall: C_to_K(140),
       p_vap_chamber: p_sat_water(C_to_K(134)),
       chamber_vapor_kg: 0.24,
     });
@@ -93,7 +93,7 @@ describe('load_step', () => {
 
   it('saturation pinning: a DRY node above T_sat is NOT pinned — radiation superheats it', () => {
     const s = oneNode({ material: 'COTTON_TEXTILE', mass_kg: 5, T: C_to_K(134), m_water: 0 });
-    const e = envAt({ T_jacket: C_to_K(140), p_vap_chamber: p_sat_water(C_to_K(134)) });
+    const e = envAt({ T_wall: C_to_K(140), p_vap_chamber: p_sat_water(C_to_K(134)) });
     const r = load_step(s, P, e, 10);
     expect(r.next.nodes[0]!.T).toBeGreaterThan(C_to_K(134)); // dry → free to rise above sat
   });

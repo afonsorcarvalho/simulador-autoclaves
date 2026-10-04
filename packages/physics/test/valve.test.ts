@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { choked_flow } from '../src/valve.js';
+import { choked_flow, vacuum_pump_flow } from '../src/valve.js';
 import { R_AIR, GAMMA_AIR, P_ATM, C_to_K, bar_to_Pa } from '../src/constants.js';
 
 const airValve = { Cv: 1.0, gamma: GAMMA_AIR, R: R_AIR };
@@ -47,5 +47,20 @@ describe('choked_flow', () => {
     const fcold = choked_flow(bar_to_Pa(3), C_to_K(20), P_ATM, airValve);
     const fhot = choked_flow(bar_to_Pa(3), C_to_K(150), P_ATM, airValve);
     expect(fhot).toBeLessThan(fcold);
+  });
+});
+
+describe('vacuum_pump_flow', () => {
+  const pump = { S_nom_m3_per_s: 75 / 3600, p_ult_Pa: 1000 };
+  it('zero na pressão final ou abaixo', () => {
+    expect(vacuum_pump_flow(1000, 0.01, 0.15, pump, 0.05)).toBe(0);
+    expect(vacuum_pump_flow(500, 0.01, 0.15, pump, 0.05)).toBe(0);
+  });
+  it('ṁ ≈ ρ·S(p) para passo pequeno, e nunca tira mais do que existe', () => {
+    const m = 0.18;
+    const P = 101325;
+    const S = pump.S_nom_m3_per_s * (1 - pump.p_ult_Pa / P);
+    expect(vacuum_pump_flow(P, m, 0.15, pump, 1e-4)).toBeCloseTo((m / 0.15) * S, 6);
+    expect(vacuum_pump_flow(P, m, 0.001, pump, 10) * 10).toBeLessThanOrEqual(m);
   });
 });
