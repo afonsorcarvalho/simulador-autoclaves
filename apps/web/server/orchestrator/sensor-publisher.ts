@@ -9,6 +9,17 @@ const PS_STEAM_THRESHOLD_BAR = 3.0;
 export const LVL_GEN_MIN_KG = 1.0;
 /** Generator water level max threshold (kg). */
 export const LVL_GEN_MAX_KG = 25.0;
+/** Meia-faixa de histerese dos eletrodos de nível do gerador (kg de água): o sensor liga acima de
+ *  limiar+H e só desliga abaixo de limiar−H. Sem isso a água no limiar faz o contato bater a cada
+ *  passo e o CLP liga/desliga bomba e resistência em rajada.
+ *  ponytail: banda fixa; vira knob se precisar calibrar contra o eletrodo real. */
+export const LVL_GEN_HYST_KG = 0.3;
+
+/** Liga/desliga com histerese em torno de `limiar`. */
+export function comHisterese(anterior: boolean, valor: number, limiar: number, h = LVL_GEN_HYST_KG): boolean {
+  if (anterior) return valor > limiar - h;
+  return valor > limiar + h;
+}
 
 export async function publishSensors(
   bridge: ModbusBridge,
@@ -53,8 +64,9 @@ export async function publishSensors(
 
   // Generator water level switches
   if (state.generator) {
-    await access.setCoil('LVL_GEN_MIN', state.generator.m_water_liq > LVL_GEN_MIN_KG);
-    await access.setCoil('LVL_GEN_MAX', state.generator.m_water_liq > LVL_GEN_MAX_KG);
+    const m = state.generator.m_water_liq;
+    await access.setCoil('LVL_GEN_MIN', comHisterese(await access.getCoil('LVL_GEN_MIN'), m, LVL_GEN_MIN_KG));
+    await access.setCoil('LVL_GEN_MAX', comHisterese(await access.getCoil('LVL_GEN_MAX'), m, LVL_GEN_MAX_KG));
   } else {
     await access.setCoil('LVL_GEN_MIN', false);
     await access.setCoil('LVL_GEN_MAX', false);
