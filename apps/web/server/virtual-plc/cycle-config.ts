@@ -15,6 +15,7 @@ const LoadItemSchema = z.object({
   mass_kg: z.number().positive(),
   initial_T_C: z.number().optional(),
   witness: z.boolean().optional(),
+  embalagem: z.enum(['nenhuma', 'pacote_textil', 'caixa_sms', 'grau_cirurgico']).optional(),
 });
 
 export const CycleConfigSchema = z.object({

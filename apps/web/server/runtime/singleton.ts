@@ -22,6 +22,7 @@ import {
   R_VAP,
   bar_to_Pa,
   buildLoadState,
+  type Embalagem,
 } from '@sim/physics';
 import { readCommands } from '../orchestrator/command-reader.js';
 import { applyFactory, applyOverrides } from '../knobs/store.js';
@@ -225,6 +226,8 @@ export interface Runtime {
     mass_a_kg: number;
     material_b: MaterialName;
     mass_b_kg: number;
+    embalagem_a: Embalagem;
+    embalagem_b: Embalagem;
     T_initial_C: number;
   };
   /** Carga do ciclo: a do ciclo se definida, senão A + B dos knobs; T inicial = T_initial. */
@@ -291,6 +294,8 @@ class RuntimeImpl implements Runtime {
     mass_a_kg: 20,
     material_b: 'COTTON_TEXTILE',
     mass_b_kg: 5,
+    embalagem_a: 'nenhuma',
+    embalagem_b: 'nenhuma',
     T_initial_C: -1,
   };
   private generatorCold = false;
@@ -361,10 +366,16 @@ class RuntimeImpl implements Runtime {
     const own = this.effectiveCycle?.load as LoadItemConfig[] | undefined;
     if (own && own.length > 0) return buildLoadState(own, T0);
     const items: LoadItemConfig[] = [
-      { name: 'carga A', material: k.material_a, mass_kg: k.mass_a_kg },
+      { name: 'carga A', material: k.material_a, mass_kg: k.mass_a_kg, embalagem: k.embalagem_a },
     ];
     if (k.mass_b_kg > 0)
-      items.push({ name: 'carga B', material: k.material_b, mass_kg: k.mass_b_kg, witness: true });
+      items.push({
+        name: 'carga B',
+        material: k.material_b,
+        mass_kg: k.mass_b_kg,
+        embalagem: k.embalagem_b,
+        witness: true,
+      });
     else items[0]!.witness = true;
     return buildLoadState(items, T0);
   }

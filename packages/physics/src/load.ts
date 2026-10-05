@@ -2,6 +2,7 @@
 import { MATERIALS, estimateArea, type MaterialName } from './materials.js';
 import { T_sat_water } from './saturation.js';
 import { L_eff } from './energy.js';
+import { EMBALAGEM_PARAMS, taxaEvaporacao, type Embalagem } from './drying.js';
 import { CP_WATER, SIGMA_SB, C_to_K, H_COND_DEFAULT, H_DESUP_DEFAULT, CV_VAP } from './constants.js';
 
 export interface LoadNode {
@@ -11,6 +12,10 @@ export interface LoadNode {
   T: number; // K (estado)
   m_water: number; // kg (estado)
   isWitness?: boolean; // true = testemunho (referência p/ F0)
+  /** Embalagem do item (secagem). Ausente/'nenhuma' = água em filme, flash imediato. */
+  embalagem?: Embalagem;
+  /** Maior água retida no ciclo (kg) — referência da frente seca do tecido. */
+  m_water_max?: number;
 }
 
 export interface LoadState {
@@ -136,7 +141,28 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
       // REGIME SECO / SUPERAQUECIDO / SEM VAPOR: sensível seco (convecção ∝ρ) + radiação.
       Q_conv = h_gas * A * (e.T_gas - node.T); // W (gás→nó)
       const T_prov = node.T + ((Q_conv + Q_rad) * dt) / C;
-      if (node.m_water > 0 && T_prov > T_boil) {
+      const emb = node.embalagem && node.embalagem !== 'nenhuma' ? node.embalagem : null;
+      if (emb && node.m_water > 0 && T_prov > T_boil) {
+        // Item EMBALADO: evaporação limitada por calor item→água e saída do vapor (drying.ts).
+        const ev = taxaEvaporacao(
+          {
+            emb: EMBALAGEM_PARAMS[emb],
+            massa_seca_kg: node.mass_kg,
+            area_item_m2: A,
+            m_agua_kg: node.m_water,
+            m_agua_ref_kg: Math.max(node.m_water_max ?? 0, node.m_water),
+            T_item_K: T_prov,
+            p_camara_Pa: e.p_vap_chamber,
+          },
+          hv,
+        );
+        const evap = Math.max(
+          0,
+          Math.min(ev.taxa * dt, node.m_water, (C * (T_prov - ev.T_b)) / hv),
+        );
+        dWater = -evap;
+        T_final = T_prov - (evap * hv) / C;
+      } else if (node.m_water > 0 && T_prov > T_boil) {
         // Flash: água livre não deixa superaquecer — evapora até à ebulição (arrefece no vácuo).
         const surplus = C * (T_prov - T_boil);
         const evap = Math.min(surplus / hv, node.m_water);
@@ -162,7 +188,7 @@ export function load_step(s: LoadState, p: LoadParams, e: LoadEnv, dt: number): 
 
     Q_conv_total += Q_conv;
     Q_rad_total += Q_rad;
-    return { ...node, T: T_final, m_water };
+    return { ...node, T: T_final, m_water, m_water_max: Math.max(node.m_water_max ?? 0, m_water) };
   });
 
   return {
@@ -183,6 +209,8 @@ export interface LoadItemConfig {
   mass_kg: number;
   initial_T_C?: number;
   witness?: boolean;
+  /** Embalagem (secagem): nenhuma | pacote_textil | caixa_sms | grau_cirurgico. */
+  embalagem?: Embalagem;
 }
 
 const DEFAULT_ITEMS: LoadItemConfig[] = [
@@ -204,6 +232,7 @@ export function buildLoadState(
     T: it.initial_T_C != null ? C_to_K(it.initial_T_C) : T_ambient_K,
     m_water: 0,
     isWitness: it.witness ?? false,
+    ...(it.embalagem ? { embalagem: it.embalagem } : {}),
   }));
   if (!nodes.some((n) => n.isWitness)) {
     nodes.push({

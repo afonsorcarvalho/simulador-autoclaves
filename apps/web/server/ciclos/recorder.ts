@@ -182,6 +182,7 @@ export class CycleRecorder {
       t_carga_max_C: ult ? tMax : 0,
       p_camara_max_bar: ult ? pMax : 0,
       tempos_fase_s: tempos,
+      ...(s?.secagem && { secagem: s.secagem }),
     };
     try {
       salvar(c);

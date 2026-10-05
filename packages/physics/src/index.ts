@@ -6,5 +6,6 @@ export * from './chamber.js';
 export * from './generator.js';
 export * from './materials.js';
 export * from './load.js';
+export * from './drying.js';
 export * from './integrator.js';
 export * from './csv-trace.js';

@@ -15,6 +15,7 @@ import {
   R_VAP,
   bar_to_Pa,
   buildLoadState,
+  type LoadItemConfig,
 } from '@sim/physics';
 
 function tracesToCsv(rows: TraceRow[]): string {
@@ -155,6 +156,9 @@ export async function main(opts: CliOpts): Promise<number> {
   const cycle = CycleConfigSchema.parse(yaml.load(yamlText));
   const params = defaultParams();
   const initial = preheatedInitial(params);
+  // Carga declarada no ciclo (com embalagem), senão a padrão.
+  if (cycle.load && cycle.load.length > 0)
+    initial.load = buildLoadState(cycle.load as LoadItemConfig[], C_to_K(22));
 
   const wantTrace = opts.outCsv !== undefined;
   console.log(`[scenario] Running ${cycle.name} (max 3600s sim time)...`);

@@ -1,5 +1,5 @@
 import type { SystemState, SystemParams } from '@sim/physics';
-import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar } from '@sim/physics';
+import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar, secagemEN285 } from '@sim/physics';
 import type { DoorSide, DoorState } from '../bridge/delta-plc.js';
 import type { Fault } from '../faults/types.js';
 import { LVL_GEN_MAX_KG, LVL_GEN_MIN_KG } from '../orchestrator/sensor-publisher.js';
@@ -38,6 +38,18 @@ export interface Snapshot {
   vapor?: Vapor;
   /** Gerador de vapor: água líquida, sensores de nível (mesmos limiares do sensor-publisher) e alívio. */
   generator?: GeneratorSnap;
+  /** Umidade por item da carga e aprovação pelo ensaio de secagem EN 285. */
+  secagem?: SecagemItem[];
+}
+
+export interface SecagemItem {
+  nome: string;
+  embalagem: string;
+  agua_g: number;
+  /** Ganho de massa (% da massa seca) e limite EN 285 (%). */
+  ganho_pct: number;
+  limite_pct: number;
+  aprovado: boolean;
 }
 
 export interface GeneratorSnap {
@@ -143,6 +155,18 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
     },
     ...(o.condensado && { condensado: { ...o.condensado } }),
     ...(o.vapor && { vapor: { ...o.vapor } }),
+    secagem: o.state.load.nodes.map((n) => {
+      const emb = n.embalagem ?? 'nenhuma';
+      const r = secagemEN285(emb, n.m_water, n.mass_kg);
+      return {
+        nome: n.name,
+        embalagem: emb,
+        agua_g: n.m_water * 1000,
+        ganho_pct: r.ganho * 100,
+        limite_pct: r.limite * 100,
+        aprovado: r.aprovado,
+      };
+    }),
     ...(o.state.generator && {
       generator: {
         agua_kg: o.state.generator.m_water_liq,

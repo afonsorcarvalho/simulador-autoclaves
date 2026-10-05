@@ -2,6 +2,8 @@ import {
   bar_to_Pa,
   C_to_K,
   type MaterialName,
+  EMBALAGENS,
+  EMBALAGEM_LABELS,
   DOOR_H_OPEN_DEFAULT,
   DOOR_TAU_GAS_DEFAULT,
 } from '@sim/physics';
@@ -171,6 +173,34 @@ function massKnob(
     set: (rt, v) => setLoad(rt, () => (rt.loadKnobs[slot] = v)),
   };
 }
+
+function embalagemKnob(
+  id: string,
+  slot: 'embalagem_a' | 'embalagem_b',
+  label: string,
+  help: string,
+): KnobDescriptor {
+  return {
+    id,
+    family: 'plant',
+    categoria: 'Carga',
+    label,
+    unit: '',
+    default: 0,
+    min: 0,
+    max: EMBALAGENS.length - 1,
+    step: 1,
+    options: [...EMBALAGENS],
+    optionLabels: EMBALAGENS.map((n) => EMBALAGEM_LABELS[n]),
+    timing: 'live',
+    help: help + LOAD_HELP,
+    get: (rt) => EMBALAGENS.indexOf(rt.loadKnobs[slot]),
+    set: (rt, v) => setLoad(rt, () => (rt.loadKnobs[slot] = EMBALAGENS[Math.round(v)]!)),
+  };
+}
+
+const EMBALAGEM_HELP =
+  ' Define a dificuldade de secagem: sem embalagem a água seca em flash; pacote têxtil seca em dois períodos (frente seca no tecido); caixa em SMS deixa o condensado empoçado no fundo da bandeja; grau cirúrgico só deixa o vapor sair pelo papel. Estimativas de literatura, não calibradas.';
 
 export const KNOBS: KnobDescriptor[] = [
   // ---- CYCLE (precycle: written into runtime.cycleOverride, merged at startCycle) ----
@@ -620,6 +650,8 @@ export const KNOBS: KnobDescriptor[] = [
     'COTTON_TEXTILE',
     'Material da carga B. B é o testemunho do F0 (ponto de medida); sem B o testemunho é A.',
   ),
+  embalagemKnob('plant.load.embalagem_a', 'embalagem_a', 'Carga A — embalagem', 'Embalagem da carga A.' + EMBALAGEM_HELP),
+  embalagemKnob('plant.load.embalagem_b', 'embalagem_b', 'Carga B — embalagem', 'Embalagem da carga B.' + EMBALAGEM_HELP),
   massKnob(
     'plant.load.mass_b_kg',
     'mass_b_kg',

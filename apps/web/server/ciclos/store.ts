@@ -76,6 +76,8 @@ export interface Ciclo {
     t_carga_max_C: number;
     p_camara_max_bar: number;
     tempos_fase_s: Record<string, number>;
+    /** Umidade final por item e ensaio de secagem EN 285 (ausente em ciclos antigos). */
+    secagem?: import('../runtime/snapshot.js').SecagemItem[];
   };
   serie: PontoSerie[];
 }
