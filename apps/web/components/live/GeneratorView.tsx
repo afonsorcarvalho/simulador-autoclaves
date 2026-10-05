@@ -58,6 +58,7 @@ export function GeneratorView({ snap }: { snap: Snapshot | null }) {
         @keyframes gv-brilho { 50% { opacity: .45 } }
         @keyframes gv-flui { to { stroke-dashoffset: -16 } }
         @keyframes gv-sobe { from { transform: translateY(0); opacity: .8 } to { transform: translateY(-22px); opacity: 0 } }
+        @keyframes gv-agita { from { transform: translate(0, 0) } to { transform: translate(var(--dx), var(--dy)) } }
       `}</style>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm tabular-nums mb-2">
         <span className="text-2xl font-semibold" style={{ color: cor }}>
@@ -118,6 +119,38 @@ export function GeneratorView({ snap }: { snap: Snapshot | null }) {
               style={{ animation: `gv-sobe 1.2s ${i * 0.4}s ease-in infinite` }}
             />
           ))}
+        {/* moléculas de vapor acima da água: mais numerosas e mais agitadas quanto maior a pressão */}
+        {(() => {
+          const espaco = yAgua - VASO_TOP - 6;
+          if (espaco < 8) return null;
+          const agit = Math.min(Math.max((p - 1) / Math.max(g.alivio_bar - 1, 0.1), 0), 1);
+          const n = 4 + Math.round(14 * agit);
+          const amp = 2 + 8 * agit; // px
+          const dur = 1.8 - 1.4 * agit; // s
+          return Array.from({ length: n }, (_, i) => {
+            // posição pseudoaleatória fixa por índice (não pula a cada render)
+            const fx = ((i * 37) % 100) / 100;
+            const fy = ((i * 61 + 17) % 100) / 100;
+            const ang = (i * 2.399) % (2 * Math.PI);
+            return (
+              <circle
+                key={`m${i}`}
+                cx={50 + fx * 100}
+                cy={VASO_TOP + 4 + fy * espaco}
+                r={1.8}
+                fill="#e2e8f0"
+                opacity={0.55 + 0.4 * agit}
+                style={
+                  {
+                    '--dx': `${(Math.cos(ang) * amp).toFixed(1)}px`,
+                    '--dy': `${(Math.sin(ang) * amp).toFixed(1)}px`,
+                    animation: `gv-agita ${dur.toFixed(2)}s ${((i * 0.13) % dur).toFixed(2)}s ease-in-out infinite alternate`,
+                  } as React.CSSProperties
+                }
+              />
+            );
+          });
+        })()}
         {/* marcas de nível */}
         {(
           [
