@@ -8,6 +8,8 @@
   "plant.chamber.relief": 3.25,
   "plant.chamber.h_ambient": 10,
   "plant.chamber.drain": 2e-05,
+  "plant.steam.fonte": 0,
+  "plant.steam.linha_bar": 4.5,
   "plant.generator.heater_power": 36000,
   "plant.valve.steam_in_int_mm": 3.191538243211461,
   "plant.valve.air_in_mm": 5.046265044040321,

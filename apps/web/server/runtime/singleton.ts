@@ -22,6 +22,7 @@ import {
   R_VAP,
   bar_to_Pa,
   buildLoadState,
+  T_sat_water,
   type Embalagem,
 } from '@sim/physics';
 import { readCommands } from '../orchestrator/command-reader.js';
@@ -81,13 +82,15 @@ function defaultParams(): SystemParams {
     },
     load: { h0_conv: 30, k_cond: 2e-6, k_ev: 2e-6 },
     valves: {
+      // Fonte de vapor (knob plant.steam.fonte): padrão REDE — o CLP da bancada usa fonte = 1
+      // (linha externa) e não liga a resistência; com o gerador conservativo ele esvaziaria.
       V_STEAM_IN_INT: {
-        from: 'generator',
+        from: 'steam_line',
         to: 'chamber',
         params: { Cv: CV.V_STEAM_IN_INT, gamma: GAMMA_VAP, R: R_VAP },
       },
       V_STEAM_IN_JACKET: {
-        from: 'generator',
+        from: 'steam_line',
         to: 'jacket',
         // CLP real: ele controla a camisa (sem termostato interno) e precisa de vazão para chegar
         // ao SP de ~3,6 bar abs em < 2 min. ponytail: Cv 5e-6 calibrado a olho; ajustar no vaso real.
@@ -138,8 +141,10 @@ function defaultParams(): SystemParams {
       vapor_factor: PUMP_DEFAULT.vapor_factor,
     },
     external: {
-      steam_line_pressure: bar_to_Pa(5),
-      steam_line_T: C_to_K(160),
+      // Linha de vapor saturado a 4,5 bar abs (knob plant.steam.linha_bar): o mesmo regime do
+      // gerador quente antigo (~4,5 bar), para o comportamento da bancada não mudar.
+      steam_line_pressure: bar_to_Pa(4.5),
+      steam_line_T: T_sat_water(bar_to_Pa(4.5)),
       atmosphere_T: C_to_K(23), // knob plant.ambient.T
     },
     jacket_chamber_h_W_per_K: 150,

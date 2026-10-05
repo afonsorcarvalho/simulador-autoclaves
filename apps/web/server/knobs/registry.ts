@@ -1,5 +1,7 @@
 import {
   bar_to_Pa,
+  Pa_to_bar,
+  T_sat_water,
   C_to_K,
   type MaterialName,
   EMBALAGENS,
@@ -357,6 +359,46 @@ export const KNOBS: KnobDescriptor[] = [
     get: (rt) => rt.params.chamber.drain_kg_per_s ?? 2e-5,
     set: (rt, v) => {
       rt.params.chamber.drain_kg_per_s = v;
+    },
+  },
+  {
+    id: 'plant.steam.fonte',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Fonte de vapor',
+    unit: '',
+    default: 0,
+    min: 0,
+    max: 1,
+    step: 1,
+    options: ['rede', 'gerador'],
+    optionLabels: ['Rede / caldeira externa (pressão de linha)', 'Gerador próprio (resistência + nível)'],
+    timing: 'live',
+    help: 'De onde vem o vapor das válvulas de entrada da câmara e da camisa. Rede: linha de vapor saturado na pressão do knob "Pressão da linha de vapor" (fonte = 1 no CLP; ele não liga a resistência). Gerador: o vaso com água e resistência — a pressão cai quando o consumo passa da potência da resistência, e a vazão das válvulas cai junto (só use se o CLP comandar a resistência e a bomba, fonte = 3).',
+    get: (rt) => (rt.params.valves.V_STEAM_IN_INT!.from === 'generator' ? 1 : 0),
+    set: (rt, v) => {
+      const from = Math.round(v) === 1 ? 'generator' : 'steam_line';
+      rt.params.valves.V_STEAM_IN_INT!.from = from;
+      rt.params.valves.V_STEAM_IN_JACKET!.from = from;
+    },
+  },
+  {
+    id: 'plant.steam.linha_bar',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Pressão da linha de vapor',
+    unit: 'bar abs',
+    default: 4.5,
+    min: 1.5,
+    max: 8,
+    step: 0.1,
+    decimals: 1,
+    timing: 'live',
+    help: 'Pressão absoluta do vapor saturado da rede/caldeira (fonte = rede). A vazão das válvulas de entrada é proporcional a ela (escoamento crítico) e se anula quando a câmara chega a essa pressão. Típico: 4–6 bar abs. Baixar simula caldeira fraca ou queda na linha.',
+    get: (rt) => Pa_to_bar(rt.params.external.steam_line_pressure),
+    set: (rt, v) => {
+      rt.params.external.steam_line_pressure = bar_to_Pa(v);
+      rt.params.external.steam_line_T = T_sat_water(bar_to_Pa(v));
     },
   },
   {
