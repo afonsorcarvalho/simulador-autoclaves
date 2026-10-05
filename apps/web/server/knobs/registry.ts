@@ -8,6 +8,7 @@ import {
   EMBALAGEM_LABELS,
   DOOR_H_OPEN_DEFAULT,
   DOOR_TAU_GAS_DEFAULT,
+  GEN_FEED_DEFAULT_KG_S,
 } from '@sim/physics';
 import type { Runtime } from '../runtime/singleton.js';
 import { VALVE_CV_DEFAULT, PUMP_DEFAULT, CHAMBER_REF } from '../runtime/plant-defaults.js';
@@ -416,6 +417,65 @@ export const KNOBS: KnobDescriptor[] = [
     get: (rt) => rt.params.generator!.heater_power_W,
     set: (rt, v) => {
       rt.params.generator!.heater_power_W = v;
+    },
+  },
+  {
+    id: 'plant.generator.transd_fundo_bar',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Fundo de escala transdutor gerador',
+    unit: 'bar',
+    default: 10,
+    min: 1,
+    max: 25,
+    step: 0.5,
+    decimals: 1,
+    timing: 'live',
+    help: 'Fundo de escala do transdutor de pressão do gerador (bar abs): o bruto enviado ao CLP é p/fundo × 4000 contagens (satura em 4000). Câmara e camisa ficam em 0..4 bar. Deve bater com D_SPAN_BAR_PGER/D_SPAN_DIG_PGER do CLP (10 bar = 10000/4000).',
+    get: (rt) => rt.params.generator!.transd_fundo_bar ?? 10,
+    set: (rt, v) => {
+      rt.params.generator!.transd_fundo_bar = v;
+      // duck typing: o runtime em globalThis pode carregar outra cópia da classe do bridge
+      const b = rt.bridge as { fundoGerBar?: number };
+      if ('fundoGerBar' in b) b.fundoGerBar = v;
+    },
+  },
+  {
+    id: 'plant.generator.ua_perda',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Perda de calor gerador',
+    unit: 'W/K',
+    default: 3,
+    min: 0,
+    max: 50,
+    step: 0.5,
+    decimals: 1,
+    timing: 'live',
+    help: 'Perda de calor do casco do gerador para o ambiente (W/K): Q = UA × (T_ger − T_amb). Padrão 3 W/K: gerador de ~50 L isolado (~1,5 m² com 50 mm de lã de rocha ≈ 1 W/K) + flanges, válvulas e tubulação sem isolamento. Parado, cai de 4,5 para 3,5 bar abs em ~12 min com 10 kg de água (mais água, mais lento). Aumentar: gerador parado perde pressão mais rápido. 0 = sem perda.',
+    get: (rt) => rt.params.generator!.ua_loss_W_per_K ?? 0,
+    set: (rt, v) => {
+      rt.params.generator!.ua_loss_W_per_K = v;
+    },
+  },
+  {
+    id: 'plant.generator.agua_T',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Temperatura água de alimentação',
+    unit: '°C',
+    default: 24,
+    min: 1,
+    max: 95,
+    step: 1,
+    timing: 'live',
+    help: 'Temperatura da água que a bomba de reposição (V_GEN_WATER_IN) injeta no gerador (°C). A mistura fria derruba T e P do gerador pelo balanço de energia. Típico: 15–30 °C da rede; 60–90 °C com tanque de condensado/pré-aquecido. Aumentar: reposição perturba menos a pressão.',
+    get: (rt) => (rt.params.generator_feed?.T_K ?? rt.params.external.atmosphere_T) - C_to_K(0),
+    set: (rt, v) => {
+      rt.params.generator_feed = {
+        kg_per_s: rt.params.generator_feed?.kg_per_s ?? GEN_FEED_DEFAULT_KG_S,
+        T_K: C_to_K(v),
+      };
     },
   },
   boreKnob(

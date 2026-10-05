@@ -68,6 +68,8 @@ export interface GeneratorSnap {
   /** Capacidade do vaso (kg de água, 100% cheio de líquido) — referência para o desenho (frações
    *  LVL_GEN_MIN_FRAC/LVL_GEN_MAX_FRAC em @sim/physics, mesmas usadas no sensor-publisher). */
   capacidade_kg: number;
+  /** Fundo de escala do transdutor de pressão do gerador (bar abs). */
+  transd_fundo_bar: number;
 }
 
 /** Massas acumuladas no ciclo (kg, zeradas no início), vazões kg/h (média móvel ~10 s) e energia.
@@ -189,6 +191,7 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
             lvl_max: o.state.generator!.m_water_liq > max,
             alivio_bar: Pa_to_bar(o.params.generator?.relief_pressure_Pa ?? 600000),
             capacidade_kg: generator_capacity_kg(V_total),
+            transd_fundo_bar: o.params.generator?.transd_fundo_bar ?? 10,
           },
         };
       })()),

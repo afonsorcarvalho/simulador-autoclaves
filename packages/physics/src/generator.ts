@@ -12,6 +12,12 @@ export interface GeneratorParams {
   heater_power_W: number;
   /** Safety relief valve setpoint (Pa). Defaults to 3.5 bar = 350 000 Pa if not provided. */
   relief_pressure_Pa?: number;
+  /** Perda de calor casco→ambiente (W/K). Padrão 0 (sem perda). */
+  ua_loss_W_per_K?: number;
+  /** Temperatura ambiente (K) para a perda; o integrador preenche com external.atmosphere_T. */
+  T_amb_K?: number;
+  /** Fundo de escala do transdutor de pressão do gerador (bar abs). Só a ponte do CLP usa. */
+  transd_fundo_bar?: number;
 }
 
 export function generator_pressure(s: GeneratorState, p: GeneratorParams): number {
@@ -62,6 +68,9 @@ export function generator_step(
   // ≈ 182 kJ/kg (~8 % do latente) na fronteira gerador→câmara.
   const dm_out = s.m_water_vap - m_water_vap;
   let Q_in = (heater_on ? p.heater_power_W * dt : 0) - dm_out * R_VAP * T;
+  // Perda casco→ambiente. ponytail: no regime saturado o piso é 100 °C (o vaso não esfria abaixo
+  // disso pelo balanço bifásico); suficiente p/ quedas de pressão de gerador parado.
+  if (p.ua_loss_W_per_K && p.T_amb_K !== undefined) Q_in -= p.ua_loss_W_per_K * (T - p.T_amb_K) * dt;
 
   // Reposição: entra água fria, mistura com o líquido (sensível debitado do calor disponível —
   // com Q_in = 0 o balanço bifásico abaixo esfria/condensa para pagar o aquecimento dela).

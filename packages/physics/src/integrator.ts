@@ -459,7 +459,7 @@ export function system_step(
       : undefined;
     nextGenerator = generator_step(
       state.generator,
-      params.generator,
+      { ...params.generator, T_amb_K: params.external.atmosphere_T },
       actuators.heater_gen,
       generatorVaporOutflow,
       dt,

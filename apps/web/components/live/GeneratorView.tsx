@@ -69,6 +69,10 @@ export function GeneratorView({ snap }: { snap: Snapshot | null }) {
         </span>
         <span className="text-slate-300">água: {fmtValor(g.agua_kg, 'kg')}</span>
         <span className={`font-semibold ${txtCls}`}>{txt}</span>
+        <span className="text-xs text-slate-400">transdutor 0–{String(g.transd_fundo_bar).replace('.', ',')} bar</span>
+        {p > g.transd_fundo_bar && (
+          <span className="text-xs font-semibold text-red-400">acima do fundo de escala do transdutor</span>
+        )}
       </div>
       <svg viewBox="0 0 320 280" className="w-full h-auto max-h-80">
         {/* linha de vapor: topo do vaso até a saída */}

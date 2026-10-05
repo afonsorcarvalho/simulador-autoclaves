@@ -136,6 +136,8 @@ export class DeltaPlcBridge extends VirtualEsp32Bridge {
   readonly faults: Record<DoorSide, DoorFaults> = { C: noFaults(), D: noFaults() };
   /** Tipo de porta (knob plant.door.tipo). Nos tipos 1/2 as saídas de porta do CLP são ignoradas. */
   tipo: DoorTipo = 3;
+  /** Fundo de escala do transdutor do gerador (bar abs, knob plant.generator.transd_fundo_bar). */
+  fundoGerBar = 10;
   /** Comando do operador nas portas manuais: 1 abrindo, -1 fechando, 0 parado. */
   private manual: Record<DoorSide, number> = { C: 0, D: 0 };
 
@@ -379,7 +381,10 @@ export class DeltaPlcBridge extends VirtualEsp32Bridge {
     const temps = [this.drainProbe_C() ?? t_int!, ...this.pt100].map((t) =>
       clampRaw(t * 10, -32768, 32767),
     );
-    const press = [p_int!, p_ext!, p_gen!].map((p) => clampRaw(p * 1000, 0, 4000));
+    // Câmara/camisa: 0..4000 = 0..4 bar abs. Gerador: 0..4000 = 0..fundoGerBar bar abs.
+    const press = [p_int! * 1000, p_ext! * 1000, (p_gen! / this.fundoGerBar) * 4000].map((r) =>
+      clampRaw(r, 0, 4000),
+    );
     // Falha analógica entra depois do clamp: rompimento/congelamento é no sinal que chega ao CLP.
     // force/offset podem sair de -32768..32767 ou vir fracionário (offset mal calibrado, force de
     // teste): reclampar/arredondar aqui, senão writeRegs (int16) derruba o sync inteiro.

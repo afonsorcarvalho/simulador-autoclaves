@@ -89,3 +89,45 @@ describe('generator_pressure', () => {
     expect(Pa_to_bar(p)).toBeLessThan(4.0);
   });
 });
+
+describe('perda de calor e água de alimentação', () => {
+  const sat145 = (): GeneratorState => ({ m_water_liq: 10, m_water_vap: 0.0 + 0.0, T: C_to_K(145) });
+  it('gerador fechado, sem resistência: perde calor p/ o ambiente (T e P caem); UA=0 não cai', () => {
+    const base: GeneratorParams = { V_total: 0.05, heater_power_W: 0, T_amb_K: C_to_K(23) };
+    let a = generator_step(sat145(), base, false, 0, 0.001); // equilibra o vapor
+    const T0 = a.T;
+    let b = a;
+    for (let i = 0; i < 600; i++) {
+      a = generator_step(a, { ...base, ua_loss_W_per_K: 3 }, false, 0, 1);
+      b = generator_step(b, { ...base, ua_loss_W_per_K: 0 }, false, 0, 1);
+    }
+    expect(a.T).toBeLessThan(b.T - 1);
+    expect(generator_pressure(a, base)).toBeLessThan(generator_pressure(b, base));
+    expect(Math.abs(b.T - T0)).toBeLessThan(0.05);
+  });
+
+  it('padrão 3 W/K: 4,5 → 3,5 bar abs leva dezenas de minutos (10 kg de água)', () => {
+    const p: GeneratorParams = { V_total: 0.05, heater_power_W: 0, T_amb_K: C_to_K(23), ua_loss_W_per_K: 3 };
+    let s: GeneratorState = { m_water_liq: 10, m_water_vap: 0, T: C_to_K(147.9) };
+    s = generator_step(s, p, false, 0, 0.001);
+    let t = 0;
+    while (Pa_to_bar(generator_pressure(s, p)) > 3.5 && t < 7200) {
+      s = generator_step(s, p, false, 0, 1);
+      t++;
+    }
+    expect(t / 60).toBeGreaterThan(10);
+    expect(t / 60).toBeLessThan(60);
+  });
+
+  it('água fria da bomba derruba T conforme balanço de energia; água a T_ger não', () => {
+    const p: GeneratorParams = { V_total: 0.05, heater_power_W: 0 };
+    const s0 = generator_step({ m_water_liq: 10, m_water_vap: 0, T: C_to_K(145) }, p, false, 0, 0.001);
+    const fria = generator_step(s0, p, false, 0, 20, { kg_per_s: 0.05, T_K: C_to_K(24) }); // 1 kg
+    // mistura sensível: m kg a T0 + 1 kg a 24 °C (condensação do headspace ameniza pouco)
+    const T_mix = (s0.m_water_liq * (s0.T - 273.15) + 1 * 24) / (s0.m_water_liq + 1);
+    expect(fria.T - 273.15).toBeGreaterThan(T_mix - 0.5);
+    expect(fria.T - 273.15).toBeLessThan(T_mix + 2);
+    const quente = generator_step(s0, p, false, 0, 20, { kg_per_s: 0.05, T_K: s0.T });
+    expect(Math.abs(quente.T - s0.T)).toBeLessThan(0.3);
+  });
+});

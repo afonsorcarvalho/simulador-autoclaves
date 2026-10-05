@@ -69,6 +69,16 @@ describe('DeltaPlcBridge', () => {
     expect(plc.d.slice(30, 33)).toEqual([2123, 4000, 0]);
   });
 
+  it('gerador: bruto = p/fundo × 4000 (fundo 10 → 1816; fundo 4 → satura)', async () => {
+    const { plc, b, acc } = await setup();
+    await acc.setAnalog('P_GENERATOR', 4.54);
+    await b.sync(0.2);
+    expect(plc.d[32]).toBe(1816);
+    b.fundoGerBar = 4;
+    await b.sync(0.2);
+    expect(plc.d[32]).toBe(4000);
+  });
+
   it('porta leva 5 s, guarnição 2 s, overrides e M1', async () => {
     const { plc, b, acc } = await setup();
     await acc.setAnalog('P_CHAMBER_INT', 1.02);
