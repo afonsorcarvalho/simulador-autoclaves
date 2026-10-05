@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { system_step, type SystemState, type SystemParams } from '../../src/integrator.js';
+import { chamber_pressure } from '../../src/chamber.js';
 import { buildLoadState } from '../../src/load.js';
 import { R_AIR, P_ATM, C_to_K } from '../../src/constants.js';
 
@@ -84,5 +85,34 @@ describe('porta aberta', () => {
     };
     const s = run(s0, params(0, 150), 120);
     expect(s.chamber.T_wall!).toBeGreaterThan(C_to_K(60) + 1);
+  });
+
+  it('porta aberta iguala a pressão à atmosférica em ~2 s e não oscila (câmara quente condensando)', () => {
+    const p = params(1);
+    let s = hotState();
+    const dt = 0.05;
+    let maxDev = 0;
+    for (let t = 0; t < 120; t += dt) {
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, dt);
+      const pt = chamber_pressure(s.chamber, p.chamber).p_total;
+      if (t >= 2) maxDev = Math.max(maxDev, Math.abs(pt - P_ATM));
+    }
+    console.log(`desvio máx. de pressão (porta aberta, t≥2 s): ${(maxDev / 1e5).toFixed(4)} bar`);
+    expect(maxDev).toBeLessThan(1000); // ±0,01 bar
+  });
+
+  it('balanço de massa fecha com porta aberta', () => {
+    const p = params(1);
+    let s = hotState();
+    const dt = 0.05;
+    const tot = (x: SystemState) => x.chamber.m_air + x.chamber.m_vap + x.chamber.m_liq;
+    let net = 0;
+    const m0 = tot(s);
+    for (let t = 0; t < 30; t += dt) {
+      s = system_step(s, p, {}, { heater_gen: false, pump_vac: false }, dt);
+      const f = (s as any).flows ?? {};
+      net += (f.door_air_in_kg ?? 0) - (f.door_air_out_kg ?? 0) - (f.door_vap_out_kg ?? 0);
+    }
+    expect(Math.abs(tot(s) - m0 - net)).toBeLessThan(1e-6 * Math.max(1, m0));
   });
 });

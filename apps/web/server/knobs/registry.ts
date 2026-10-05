@@ -8,6 +8,7 @@ import {
   EMBALAGEM_LABELS,
   DOOR_H_OPEN_DEFAULT,
   DOOR_TAU_GAS_DEFAULT,
+  DOOR_TAU_PRESSURE_DEFAULT,
   GEN_FEED_DEFAULT_KG_S,
 } from '@sim/physics';
 import type { Runtime } from '../runtime/singleton.js';
@@ -723,6 +724,23 @@ export const KNOBS: KnobDescriptor[] = [
     get: (rt) => rt.params.door_tau_gas_s ?? DOOR_TAU_GAS_DEFAULT,
     set: (rt, v) => {
       rt.params.door_tau_gas_s = v;
+    },
+  },
+  {
+    id: 'plant.door.tau_pressao_s',
+    family: 'plant',
+    categoria: 'Portas',
+    label: 'Equalização de pressão com porta aberta',
+    unit: 's',
+    default: DOOR_TAU_PRESSURE_DEFAULT,
+    min: 0.05,
+    max: 10,
+    step: 0.05,
+    timing: 'live',
+    help: 'Constante de tempo (s) para a pressão da câmara igualar à atmosférica com a porta aberta (abertura > 2%), independente da troca lenta de ar. Padrão 0,1 s (um vão de porta iguala quase na hora). Aumentar: a pressão demora mais a voltar a 1 atm e fica um pouco acima dela enquanto o gás esquenta na parede quente (pode tirar o pressostato de câmara atmosférica).',
+    get: (rt) => rt.params.door_tau_pressure_s ?? DOOR_TAU_PRESSURE_DEFAULT,
+    set: (rt, v) => {
+      rt.params.door_tau_pressure_s = v;
     },
   },
   {

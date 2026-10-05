@@ -29,6 +29,7 @@
   "plant.ambient.T": 23,
   "plant.door.h_open": 40,
   "plant.door.tau_gas_s": 20,
+  "plant.door.tau_pressao_s": 0.1,
   "plant.door.tipo": 2,
   "plant.load.material_a": 0,
   "plant.load.mass_a_kg": 20,

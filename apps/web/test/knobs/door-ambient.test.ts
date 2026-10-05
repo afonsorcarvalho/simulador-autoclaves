@@ -23,6 +23,8 @@ describe('knobs de temperatura ambiente e porta', () => {
     knobById('plant.door.tau_gas_s')!.set(rt, 12);
     expect(rt.params.door_h_open_W_per_K).toBe(55);
     expect(rt.params.door_tau_gas_s).toBe(12);
+    knobById('plant.door.tau_pressao_s')!.set(rt, 0.3);
+    expect(rt.params.door_tau_pressure_s).toBe(0.3);
   });
 
   it('modo virtual (sem portas): abertura 0 a cada tick', async () => {

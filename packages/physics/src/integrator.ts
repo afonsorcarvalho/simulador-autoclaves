@@ -80,6 +80,8 @@ export interface SystemParams {
   door_h_open_W_per_K?: number;
   /** Constante de tempo (s) da troca gás↔ar ambiente com UMA porta aberta. Default DOOR_TAU_GAS_DEFAULT. */
   door_tau_gas_s?: number;
+  /** Constante de tempo (s) da equalização de PRESSÃO câmara↔atmosfera com porta aberta. Default DOOR_TAU_PRESSURE_DEFAULT. */
+  door_tau_pressure_s?: number;
 }
 
 /** Câmara de ~500 L: superfície interna ~3,5 m² com h de convecção natural ~10 W/m²K ≈ 35 W/K;
@@ -87,6 +89,10 @@ export interface SystemParams {
 export const DOOR_H_OPEN_DEFAULT = 40;
 /** Troca de ar pela porta aberta (~0,35 m², fluxo de empuxo ~25 L/s) renova 500 L em ~20 s. */
 export const DOOR_TAU_GAS_DEFAULT = 20;
+/** Um vão de porta iguala a pressão quase na hora. Desvio residual = τ·(taxa de subida da pressão por aquecimento/evaporação): no pior caso (gás esquentando ~12 °C/s na parede a 134 °C) 0,5 s dava ~0,026 bar e 0,2 s ~0,011 bar; 0,1 s fica em ~0,005. Piso = dt (fração por passo ≤ 1, sem overshoot). */
+export const DOOR_TAU_PRESSURE_DEFAULT = 0.1;
+/** Abaixo desta abertura (soma 0..2) a porta não equaliza pressão (vedação encostando). */
+export const DOOR_PRESSURE_MIN_OPEN = 0.02;
 /** Bomba de alimentação do gerador: ~3 L/min (0,05 kg/s), típica de geradores de 20–50 kW. */
 export const GEN_FEED_DEFAULT_KG_S = 0.05;
 
@@ -372,6 +378,26 @@ export function system_step(
     acc.chamber.air_in += air_in;
     acc.chamber.inflow_T_weighted += air_in * T_amb;
     acc.chamber.inflow_T_mass += air_in;
+    // Fluxo em massa pela porta ∝ (p − P_atm): p > P_atm sai mistura na composição atual,
+    // p < P_atm entra ar ambiente. Fração removida/admitida por passo ≤ dt/max(τ,dt) ≤ 1
+    // (isotérmico) → nunca cruza P_atm, sem oscilação. Renovação lenta (τ_gas) segue acima.
+    if (door > DOOR_PRESSURE_MIN_OPEN && pc_chamber.p_total > 0) {
+      const tau_p = Math.max(params.door_tau_pressure_s ?? DOOR_TAU_PRESSURE_DEFAULT, dt);
+      const dp = pc_chamber.p_total - P_ATM;
+      if (dp > 0) {
+        const f = dp / pc_chamber.p_total / tau_p; // 1/s
+        acc.chamber.air_out += f * state.chamber.m_air;
+        acc.chamber.vap_out += f * state.chamber.m_vap;
+        out.door_air += f * state.chamber.m_air;
+        out.door_vap += f * state.chamber.m_vap;
+      } else {
+        const bulk_in = (-dp * params.chamber.V) / (R_AIR * state.chamber.T) / tau_p;
+        doorAirIn += bulk_in;
+        acc.chamber.air_in += bulk_in;
+        acc.chamber.inflow_T_weighted += bulk_in * T_amb;
+        acc.chamber.inflow_T_mass += bulk_in;
+      }
+    }
   }
 
   // Cap outflow rates so U_new ≥ 0 after the energy balance in chamber_step.
