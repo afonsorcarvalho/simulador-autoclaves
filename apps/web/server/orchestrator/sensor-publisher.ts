@@ -1,19 +1,30 @@
 import type { ModbusBridge } from '../bridge/bridge.js';
 import { RegisterAccess } from '../bridge/register-access.js';
 import type { SystemState, SystemParams } from '@sim/physics';
-import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar } from '@sim/physics';
+import {
+  chamber_pressure,
+  generator_pressure,
+  generator_capacity_kg,
+  LVL_GEN_MIN_FRAC,
+  LVL_GEN_MAX_FRAC,
+  K_to_C,
+  Pa_to_bar,
+} from '@sim/physics';
 
 /** Steam line "OK" threshold (bar abs). Above this, pressure switch reports true. */
 const PS_STEAM_THRESHOLD_BAR = 3.0;
-/** Generator water level min threshold (kg). */
-export const LVL_GEN_MIN_KG = 1.0;
-/** Generator water level max threshold (kg). */
-export const LVL_GEN_MAX_KG = 25.0;
 /** Meia-faixa de histerese dos eletrodos de nível do gerador (kg de água): o sensor liga acima de
  *  limiar+H e só desliga abaixo de limiar−H. Sem isso a água no limiar faz o contato bater a cada
  *  passo e o CLP liga/desliga bomba e resistência em rajada.
  *  ponytail: banda fixa; vira knob se precisar calibrar contra o eletrodo real. */
 export const LVL_GEN_HYST_KG = 0.3;
+
+/** Limiares dos eletrodos de nível (kg), derivados da capacidade real do gerador (V_total) e das
+ *  frações MIN/MAX únicas (@sim/physics) — as mesmas que o desenho do gerador usa (GeneratorView). */
+export function lvlGenThresholdsKg(V_total_m3: number): { min: number; max: number } {
+  const cap = generator_capacity_kg(V_total_m3);
+  return { min: cap * LVL_GEN_MIN_FRAC, max: cap * LVL_GEN_MAX_FRAC };
+}
 
 /** Liga/desliga com histerese em torno de `limiar`. */
 export function comHisterese(anterior: boolean, valor: number, limiar: number, h = LVL_GEN_HYST_KG): boolean {
@@ -63,10 +74,11 @@ export async function publishSensors(
   await access.setCoil('LS_DOOR_STERILE_CLOSED', true);
 
   // Generator water level switches
-  if (state.generator) {
+  if (state.generator && params.generator) {
     const m = state.generator.m_water_liq;
-    await access.setCoil('LVL_GEN_MIN', comHisterese(await access.getCoil('LVL_GEN_MIN'), m, LVL_GEN_MIN_KG));
-    await access.setCoil('LVL_GEN_MAX', comHisterese(await access.getCoil('LVL_GEN_MAX'), m, LVL_GEN_MAX_KG));
+    const { min, max } = lvlGenThresholdsKg(params.generator.V_total);
+    await access.setCoil('LVL_GEN_MIN', comHisterese(await access.getCoil('LVL_GEN_MIN'), m, min));
+    await access.setCoil('LVL_GEN_MAX', comHisterese(await access.getCoil('LVL_GEN_MAX'), m, max));
   } else {
     await access.setCoil('LVL_GEN_MIN', false);
     await access.setCoil('LVL_GEN_MAX', false);

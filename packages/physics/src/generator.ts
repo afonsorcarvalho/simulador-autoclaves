@@ -25,7 +25,18 @@ export function generator_pressure(s: GeneratorState, p: GeneratorParams): numbe
 }
 
 // Liquid water density (kg/m³) at ~100°C — good enough for autoclave range.
-const RHO_LIQ = 958.4;
+export const RHO_LIQ = 958.4;
+
+/** Capacidade do gerador (kg de água) com o vaso 100% cheio de líquido — referência para os
+ *  limiares de nível dos eletrodos (sensor-publisher) e para o desenho do vaso (GeneratorView). */
+export function generator_capacity_kg(V_total_m3: number): number {
+  return V_total_m3 * RHO_LIQ;
+}
+
+/** Fração da capacidade em que o eletrodo de nível MÍNIMO atua — logo acima da resistência. */
+export const LVL_GEN_MIN_FRAC = 0.15;
+/** Fração da capacidade em que o eletrodo de nível MÁXIMO atua — meio do reservatório. */
+export const LVL_GEN_MAX_FRAC = 0.5;
 
 /** Água de reposição (bomba de alimentação do gerador). */
 export interface GeneratorFeed {

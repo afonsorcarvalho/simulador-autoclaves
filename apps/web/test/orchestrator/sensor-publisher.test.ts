@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { publishSensors } from '../../server/orchestrator/sensor-publisher.js';
+import { publishSensors, lvlGenThresholdsKg } from '../../server/orchestrator/sensor-publisher.js';
 import { RegisterAccess } from '../../server/bridge/register-access.js';
 import { VirtualEsp32Bridge } from '../../server/bridge/virtual-esp32.js';
 import type { SystemState, SystemParams } from '@sim/physics';
-import { C_to_K, buildLoadState } from '@sim/physics';
+import { C_to_K, buildLoadState, generator_capacity_kg } from '@sim/physics';
 
 function makeState(): SystemState {
   const T = C_to_K(134);
@@ -97,5 +97,18 @@ describe('publishSensors', () => {
 
     expect(await access.getCoil('LVL_GEN_MIN')).toBe(true);
     expect(await access.getCoil('LVL_GEN_MAX')).toBe(false);
+  });
+
+  it('deriva os limiares MIN/MAX (kg) da capacidade do gerador (V_total), não de valores fixos', () => {
+    const V_total = makeParams().generator!.V_total;
+    const cap = generator_capacity_kg(V_total); // 0.05 m³ × 958.4 kg/m³ = 47.92 kg
+    const { min, max } = lvlGenThresholdsKg(V_total);
+    expect(cap).toBeCloseTo(47.92, 2);
+    expect(min).toBeCloseTo(cap * 0.15, 6); // LVL MIN: 15% — logo acima da resistência
+    expect(max).toBeCloseTo(cap * 0.5, 6); // LVL MAX: 50% — meio do reservatório
+    // dobrando a capacidade do vaso, os limiares dobram junto (derivados, não fixos)
+    const dobro = lvlGenThresholdsKg(V_total * 2);
+    expect(dobro.min).toBeCloseTo(min * 2, 6);
+    expect(dobro.max).toBeCloseTo(max * 2, 6);
   });
 });

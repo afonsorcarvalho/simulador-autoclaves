@@ -3,17 +3,10 @@
 import { Card } from '../ui/Card';
 import { fmtValor } from '../../lib/format';
 import type { Snapshot } from '../../server/runtime/snapshot';
+import { LVL_GEN_MIN_FRAC, LVL_GEN_MAX_FRAC } from '@sim/physics';
+import { VASO_TOP, VASO_H, yNivel } from '../../lib/generator-geometry';
 
-/** Escala visual do vaso (kg): um pouco acima do LVL_GEN_MAX para mostrar o transbordo. */
-const ESCALA_KG = 30;
-const LVL_MIN_KG = 1; // = LVL_GEN_MIN_KG (sensor-publisher)
-const LVL_MAX_KG = 25; // = LVL_GEN_MAX_KG
 const MANO_MAX_BAR = 8;
-
-// vaso: x 40..160, y 40..240 (fundo)
-const VASO_TOP = 40;
-const VASO_H = 200;
-const yNivel = (kg: number) => VASO_TOP + VASO_H * (1 - Math.min(Math.max(kg / ESCALA_KG, 0), 1));
 
 function estado(snap: Snapshot, heater: boolean, bomba: boolean): [string, string] {
   const g = snap.generator!;
@@ -46,7 +39,9 @@ export function GeneratorView({ snap }: { snap: Snapshot | null }) {
   const p = snap.pressures.generator_bar;
   const frac = p / g.alivio_bar;
   const cor = frac >= 0.95 ? '#ef4444' : frac >= 0.85 ? '#f59e0b' : '#22c55e';
-  const yAgua = yNivel(g.agua_kg);
+  const yAgua = yNivel(g.agua_kg, g.capacidade_kg);
+  const LVL_MIN_KG = g.capacidade_kg * LVL_GEN_MIN_FRAC;
+  const LVL_MAX_KG = g.capacidade_kg * LVL_GEN_MAX_FRAC;
   // manômetro: 0..MANO_MAX_BAR em 240° (de -210° a +30°)
   const ang = (b: number) =>
     ((-210 + 240 * Math.min(Math.max(b / MANO_MAX_BAR, 0), 1)) * Math.PI) / 180;
@@ -134,17 +129,17 @@ export function GeneratorView({ snap }: { snap: Snapshot | null }) {
             <line
               x1={34}
               x2={166}
-              y1={yNivel(kg)}
-              y2={yNivel(kg)}
+              y1={yNivel(kg, g.capacidade_kg)}
+              y2={yNivel(kg, g.capacidade_kg)}
               stroke="#f59e0b"
               strokeDasharray="3 3"
             />
-            <Led x={176} y={yNivel(kg)} on={ligado} label={`LVL ${l}`} />
+            <Led x={176} y={yNivel(kg, g.capacidade_kg)} on={ligado} label={`LVL ${l}`} />
           </g>
         ))}
-        {/* resistência no fundo */}
+        {/* resistência no fundo (abaixo da marca LVL MIN, com folga visível) */}
         <path
-          d="M55 225 q8 -12 16 0 t16 0 t16 0 t16 0 t16 0 t16 0"
+          d="M55 230 q8 -12 16 0 t16 0 t16 0 t16 0 t16 0 t16 0"
           fill="none"
           stroke={heater ? '#f97316' : '#475569'}
           strokeWidth={4}

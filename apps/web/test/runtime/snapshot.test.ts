@@ -39,7 +39,13 @@ describe('buildSnapshot', () => {
       valves: {},
     };
     const s = buildSnapshot({ ...base, state: makeState() });
-    expect(s.generator).toEqual({ agua_kg: 10, lvl_min: true, lvl_max: false, alivio_bar: 6 });
+    expect(s.generator).toEqual({
+      agua_kg: 10,
+      lvl_min: true,
+      lvl_max: false,
+      alivio_bar: 6,
+      capacidade_kg: 47.92,
+    });
     const st = makeState();
     st.generator!.m_water_liq = 0.5;
     expect(buildSnapshot({ ...base, state: st }).generator).toMatchObject({

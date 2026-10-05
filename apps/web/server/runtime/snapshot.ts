@@ -1,8 +1,15 @@
 import type { SystemState, SystemParams } from '@sim/physics';
-import { chamber_pressure, generator_pressure, K_to_C, Pa_to_bar, secagemEN285 } from '@sim/physics';
+import {
+  chamber_pressure,
+  generator_pressure,
+  generator_capacity_kg,
+  K_to_C,
+  Pa_to_bar,
+  secagemEN285,
+} from '@sim/physics';
 import type { DoorSide, DoorState } from '../bridge/delta-plc.js';
 import type { Fault } from '../faults/types.js';
-import { LVL_GEN_MAX_KG, LVL_GEN_MIN_KG } from '../orchestrator/sensor-publisher.js';
+import { lvlGenThresholdsKg } from '../orchestrator/sensor-publisher.js';
 
 export interface Snapshot {
   t_s: number;
@@ -58,6 +65,9 @@ export interface GeneratorSnap {
   lvl_max: boolean;
   /** Pressão de abertura da válvula de alívio (bar abs). */
   alivio_bar: number;
+  /** Capacidade do vaso (kg de água, 100% cheio de líquido) — referência para o desenho (frações
+   *  LVL_GEN_MIN_FRAC/LVL_GEN_MAX_FRAC em @sim/physics, mesmas usadas no sensor-publisher). */
+  capacidade_kg: number;
 }
 
 /** Massas acumuladas no ciclo (kg, zeradas no início), vazões kg/h (média móvel ~10 s) e energia.
@@ -167,15 +177,21 @@ export function buildSnapshot(o: BuildSnapshotOpts): Snapshot {
         aprovado: r.aprovado,
       };
     }),
-    ...(o.state.generator && {
-      generator: {
-        agua_kg: o.state.generator.m_water_liq,
-        lvl_min: o.state.generator.m_water_liq > LVL_GEN_MIN_KG,
-        lvl_max: o.state.generator.m_water_liq > LVL_GEN_MAX_KG,
+    ...(o.state.generator &&
+      (() => {
         // mesmo default do modelo (generator.ts)
-        alivio_bar: Pa_to_bar(o.params.generator?.relief_pressure_Pa ?? 600000),
-      },
-    }),
+        const V_total = o.params.generator?.V_total ?? 0.05;
+        const { min, max } = lvlGenThresholdsKg(V_total);
+        return {
+          generator: {
+            agua_kg: o.state.generator!.m_water_liq,
+            lvl_min: o.state.generator!.m_water_liq > min,
+            lvl_max: o.state.generator!.m_water_liq > max,
+            alivio_bar: Pa_to_bar(o.params.generator?.relief_pressure_Pa ?? 600000),
+            capacidade_kg: generator_capacity_kg(V_total),
+          },
+        };
+      })()),
   };
 }
 
