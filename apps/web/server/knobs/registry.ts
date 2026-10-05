@@ -478,6 +478,24 @@ export const KNOBS: KnobDescriptor[] = [
       };
     },
   },
+  {
+    id: 'plant.generator.alivio_bar',
+    family: 'plant',
+    categoria: 'Gerador',
+    label: 'Alívio do gerador',
+    unit: 'bar abs',
+    default: 6,
+    min: 2,
+    max: 12,
+    step: 0.1,
+    decimals: 1,
+    timing: 'live',
+    help: 'Pressão absoluta (bar) de abertura da válvula de segurança do gerador — teto de segurança, não ponto de operação. Deve ficar acima de D_GER_P_MAX do CLP + pressão atmosférica, senão o gerador alivia antes de atingir o setpoint real da bancada.',
+    get: (rt) => Pa_to_bar(rt.params.generator!.relief_pressure_Pa ?? bar_to_Pa(6)),
+    set: (rt, v) => {
+      rt.params.generator!.relief_pressure_Pa = bar_to_Pa(v);
+    },
+  },
   boreKnob(
     'plant.valve.steam_in_int_mm',
     'V_STEAM_IN_INT',

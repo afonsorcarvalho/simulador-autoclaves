@@ -5,7 +5,7 @@ import {
   type GeneratorState,
   type GeneratorParams,
 } from '../src/generator.js';
-import { C_to_K, Pa_to_bar } from '../src/constants.js';
+import { C_to_K, Pa_to_bar, bar_to_Pa } from '../src/constants.js';
 
 const gen24kW: GeneratorParams = { V_total: 0.05, heater_power_W: 24000 };
 
@@ -60,6 +60,23 @@ describe('generator_step', () => {
     const next = generator_step(s, relief, false, 0, 1);
     expect(next.m_water_liq + next.m_water_vap).toBeLessThan(s.m_water_liq + s.m_water_vap);
     expect(Pa_to_bar(generator_pressure(next, relief))).toBeCloseTo(4.0, 1);
+  });
+
+  it('alívio em 6 bar abs (knob plant.generator.alivio_bar): o gerador passa de 4,54 bar sem aliviar', () => {
+    // CLP da bancada: desliga resistência a 4,0 bar rel (5,0 abs), máximo 4,2 bar rel (5,2 abs) —
+    // ambos acima do antigo alívio fixo de 4,54 bar abs, que sempre abria antes desses setpoints.
+    const gen6bar: GeneratorParams = {
+      V_total: 0.05,
+      heater_power_W: 36000,
+      relief_pressure_Pa: bar_to_Pa(6),
+    };
+    const s: GeneratorState = { m_water_liq: 10, m_water_vap: 0.05, T: C_to_K(146) }; // ~4,3 bar abs
+    const m0 = s.m_water_liq + s.m_water_vap;
+    let st = s;
+    for (let i = 0; i < 14; i++) st = generator_step(st, gen6bar, true, 0, 1); // ~14 s, chega a ~5,5 bar
+    expect(Pa_to_bar(generator_pressure(st, gen6bar))).toBeGreaterThan(4.54);
+    // sem venting: alívio não abriu, massa total de água conservada
+    expect(st.m_water_liq + st.m_water_vap).toBeCloseTo(m0, 6);
   });
 
   it('feed water refills the boiler and its sensible heat is paid for (boiler cools with heater off)', () => {

@@ -14,6 +14,7 @@
   "plant.generator.transd_fundo_bar": 10,
   "plant.generator.ua_perda": 3,
   "plant.generator.agua_T": 24,
+  "plant.generator.alivio_bar": 6,
   "plant.valve.steam_in_int_mm": 3.191538243211461,
   "plant.valve.air_in_mm": 5.046265044040321,
   "plant.valve.exhaust_mm": 5.046265044040321,

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { getRuntime, resetRuntime } from '../../server/runtime/singleton.js';
 import { KNOBS, knobById, KNOB_CATEGORIES } from '../../server/knobs/registry.js';
-import { MATERIALS } from '@sim/physics';
+import { MATERIALS, bar_to_Pa } from '@sim/physics';
 
 describe('knob registry', () => {
   beforeEach(() => resetRuntime());
@@ -31,6 +31,18 @@ describe('knob registry', () => {
     relief!.set(rt, 3.5);
     expect(rt.params.chamber.relief_pressure_Pa).toBeCloseTo(350000, 0);
     expect(relief!.get(rt)).toBeCloseTo(3.5, 4);
+  });
+
+  it('generator relief knob boots above the old 4,54 bar (CLP setpoints ficam acima) e converte bar↔Pa', () => {
+    const rt = getRuntime();
+    // Boot já aplica o factory default (6 bar abs) por cima do antigo hardcode de 4,54 bar em
+    // defaultParams() — o bug era o CLP nunca atingir seus setpoints (4,0/4,2 bar rel = 5,0/5,2 abs).
+    expect(rt.params.generator!.relief_pressure_Pa).toBeCloseTo(bar_to_Pa(6), 0);
+    const alivio = knobById('plant.generator.alivio_bar');
+    expect(alivio).toBeDefined();
+    alivio!.set(rt, 7);
+    expect(rt.params.generator!.relief_pressure_Pa).toBeCloseTo(bar_to_Pa(7), 0);
+    expect(alivio!.get(rt)).toBeCloseTo(7, 4);
   });
 
   it('plant.chamber.h_ambient set mutates runtime params live', () => {
